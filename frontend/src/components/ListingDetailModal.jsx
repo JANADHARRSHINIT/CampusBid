@@ -10,6 +10,7 @@ export default function ListingDetailModal({
   onEdit,
   onCancel,
   onBidPlaced,
+  onAskCopilot,
 }) {
   if (!isOpen || !listing) return null;
 
@@ -22,6 +23,7 @@ export default function ListingDetailModal({
       onEdit={onEdit}
       onCancel={onCancel}
       onBidPlaced={onBidPlaced}
+      onAskCopilot={onAskCopilot}
     />
   );
 }
@@ -33,6 +35,7 @@ function ListingDetailView({
   onEdit,
   onCancel,
   onBidPlaced,
+  onAskCopilot,
 }) {
   const [listing, setListing] = useState(initialListing);
   const [prevInitial, setPrevInitial] = useState(initialListing);
@@ -666,6 +669,16 @@ function ListingDetailView({
                     >
                       +${(Number(listing.minBidIncrement || 1) * 2).toFixed(2)} (${(minNextBid + Number(listing.minBidIncrement || 1) * 2).toFixed(2)})
                     </button>
+                    {onAskCopilot && (
+                      <button
+                        type="button"
+                        className="btn-quick-bid btn-ask-copilot-pill"
+                        onClick={() => onAskCopilot(listing)}
+                        title="Ask CampusBid AI Copilot about this lot"
+                      >
+                        🤖 Ask Copilot
+                      </button>
+                    )}
                   </div>
 
                   {/* Custom Bid Input & Place Bid Button */}

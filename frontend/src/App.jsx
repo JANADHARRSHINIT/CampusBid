@@ -6,6 +6,7 @@ import CreateListingModal from './components/CreateListingModal';
 import EditListingModal from './components/EditListingModal';
 import CancelModal from './components/CancelModal';
 import ListingDetailModal from './components/ListingDetailModal';
+import CopilotDrawer from './components/CopilotDrawer';
 import Toast from './components/Toast';
 import { listingApi } from './api/listingApi';
 import { DEMO_STUDENTS, CATEGORIES, CATEGORY_ICONS } from './constants';
@@ -36,6 +37,10 @@ export default function App() {
   const [editTarget, setEditTarget] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
   const [detailTarget, setDetailTarget] = useState(null);
+
+  // AI Copilot state
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const [copilotContextListing, setCopilotContextListing] = useState(null);
 
   // Toast notification
   const [toast, setToast] = useState(null);
@@ -586,6 +591,28 @@ export default function App() {
         onCancel={(item) => setCancelTarget(item)}
         onBidPlaced={() => {
           reloadListings();
+        }}
+        onAskCopilot={(item) => {
+          setCopilotContextListing(item);
+          setIsCopilotOpen(true);
+        }}
+      />
+
+      {/* AI Auction Copilot Floating Assistant & Drawer */}
+      <CopilotDrawer
+        isOpen={isCopilotOpen}
+        onToggle={() => setIsCopilotOpen((prev) => !prev)}
+        onClose={() => setIsCopilotOpen(false)}
+        currentStudent={currentStudent}
+        contextListing={copilotContextListing}
+        onClearContext={() => setCopilotContextListing(null)}
+        onViewLot={(item) => {
+          setDetailTarget(item);
+          setCopilotContextListing(item);
+        }}
+        onBidConfirmed={(result) => {
+          reloadListings();
+          showToast(`Bid placed successfully via Copilot!`, 'success');
         }}
       />
 

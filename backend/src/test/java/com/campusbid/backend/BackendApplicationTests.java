@@ -24,8 +24,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.campusbid.backend.dto.NotificationResponse;
+import com.campusbid.backend.dto.CopilotChatRequest;
+import com.campusbid.backend.dto.CopilotChatResponse;
+import com.campusbid.backend.dto.CopilotConfirmBidRequest;
 import com.campusbid.backend.model.NotificationType;
 import com.campusbid.backend.service.NotificationService;
+import com.campusbid.backend.service.CopilotService;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -38,11 +42,15 @@ class BackendApplicationTests {
 	@Autowired
 	private NotificationService notificationService;
 
+	@Autowired
+	private CopilotService copilotService;
+
 	@Test
 	@DisplayName("Context loads successfully")
 	void contextLoads() {
 		assertNotNull(listingService);
 		assertNotNull(notificationService);
+		assertNotNull(copilotService);
 	}
 
 	@Test
@@ -834,6 +842,228 @@ class BackendApplicationTests {
 		// Mark all as read
 		notificationService.markAllAsRead("student-alice");
 		assertEquals(0, notificationService.getUnreadCount("student-alice"));
+	}
+
+	@Test
+	@DisplayName("Copilot: 1. Search for a cycle under ₹2,000 maps to Bikes & Transport and returns actual listings")
+	void testCopilotSearchCycleUnderBudget() {
+		// Ensure an active cycle listing exists
+		CreateListingRequest createReq = new CreateListingRequest();
+		createReq.setTitle("Hero Sprint Single Speed Bicycle");
+		createReq.setCategory("Bikes & Transport");
+		createReq.setDescription("Campus bicycle in good condition.");
+		createReq.setCondition(ItemCondition.GOOD);
+		createReq.setStartingPrice(new BigDecimal("1500.00"));
+		createReq.setMinBidIncrement(new BigDecimal("50.00"));
+		createReq.setClosingTime(LocalDateTime.now().plusDays(3));
+		createReq.setSellerId("student-cycle-seller");
+		listingService.createListing(createReq);
+
+		CopilotChatRequest chatReq = new CopilotChatRequest();
+		chatReq.setMessage("Find me a cycle under ₹2,000.");
+
+		CopilotChatResponse response = copilotService.processChat(chatReq, "student-101");
+		assertNotNull(response);
+		assertEquals("SEARCH", response.getIntent());
+		assertFalse(response.getMatchingListings().isEmpty());
+		assertTrue(response.getMatchingListings().stream().anyMatch(l -> l.getCategory().equals("Bikes & Transport")));
+		assertTrue(response.getReply().contains("Found"));
+	}
+
+	@Test
+	@DisplayName("Copilot: 2. Filter by category, condition, and closing time")
+	void testCopilotFilterByCategoryConditionClosingTime() {
+		CreateListingRequest createReq = new CreateListingRequest();
+		createReq.setTitle("Discrete Mathematics and Its Applications");
+		createReq.setCategory("Textbooks");
+		createReq.setDescription("Standard textbook in good condition.");
+		createReq.setCondition(ItemCondition.GOOD);
+		createReq.setStartingPrice(new BigDecimal("350.00"));
+		createReq.setMinBidIncrement(new BigDecimal("25.00"));
+		createReq.setClosingTime(LocalDateTime.now().plusHours(12)); // Closing soon
+		createReq.setSellerId("student-math-seller");
+		listingService.createListing(createReq);
+
+		CopilotChatRequest chatReq = new CopilotChatRequest();
+		chatReq.setMessage("Which books are in good condition under ₹500 closing soon?");
+
+		CopilotChatResponse response = copilotService.processChat(chatReq, "student-101");
+		assertNotNull(response);
+		assertEquals("SEARCH", response.getIntent());
+		assertFalse(response.getMatchingListings().isEmpty());
+		assertTrue(response.getMatchingListings().stream().anyMatch(l -> l.getCategory().equals("Textbooks") && l.getCondition() == ItemCondition.GOOD));
+	}
+
+	@Test
+	@DisplayName("Copilot: 3. Search when no matching items exist returns clear explanation and relaxes filter advice")
+	void testCopilotSearchNoMatches() {
+		CopilotChatRequest chatReq = new CopilotChatRequest();
+		chatReq.setMessage("Find me an electric spaceship under ₹10.");
+
+		CopilotChatResponse response = copilotService.processChat(chatReq, "student-101");
+		assertNotNull(response);
+		assertEquals("SEARCH", response.getIntent());
+		assertTrue(response.getMatchingListings().isEmpty());
+		assertTrue(response.getReply().contains("No Matching Auctions Found"));
+		assertTrue(response.getReply().contains("Try relaxing your budget filter"));
+	}
+
+	@Test
+	@DisplayName("Copilot: 4. Ask for an auction's current bid")
+	void testCopilotAskCurrentBid() {
+		CreateListingRequest createReq = new CreateListingRequest();
+		createReq.setTitle("Wireless Noise Cancelling Earbuds");
+		createReq.setCategory("Electronics");
+		createReq.setDescription("Great bass.");
+		createReq.setCondition(ItemCondition.LIKE_NEW);
+		createReq.setStartingPrice(new BigDecimal("40.00"));
+		createReq.setMinBidIncrement(new BigDecimal("5.00"));
+		createReq.setClosingTime(LocalDateTime.now().plusDays(2));
+		createReq.setSellerId("student-earbuds-seller");
+		ListingResponse created = listingService.createListing(createReq);
+
+		PlaceBidRequest bid = new PlaceBidRequest();
+		bid.setAmount(new BigDecimal("50.00"));
+		bid.setBidderId("student-earbuds-buyer");
+		listingService.placeBid(created.getId(), bid, "student-earbuds-buyer");
+
+		CopilotChatRequest chatReq = new CopilotChatRequest();
+		chatReq.setMessage(String.format("What is the current highest bid for Lot #%d?", created.getId()));
+
+		CopilotChatResponse response = copilotService.processChat(chatReq, "student-101");
+		assertNotNull(response);
+		assertEquals("ITEM_STATUS", response.getIntent());
+		assertTrue(response.getReply().contains("$50.00"));
+		assertTrue(response.getReply().contains("Highest Leading Bid"));
+		assertEquals(1, response.getMatchingListings().size());
+	}
+
+	@Test
+	@DisplayName("Copilot: 5. Request bid assistance without confirming does NOT place a bid")
+	void testCopilotBidAssistanceWithoutConfirming() {
+		CreateListingRequest createReq = new CreateListingRequest();
+		createReq.setTitle("Study Table Lamp Warm White");
+		createReq.setCategory("Dorm & Furniture");
+		createReq.setDescription("Adjustable arm lamp.");
+		createReq.setCondition(ItemCondition.GOOD);
+		createReq.setStartingPrice(new BigDecimal("20.00"));
+		createReq.setMinBidIncrement(new BigDecimal("2.00"));
+		createReq.setClosingTime(LocalDateTime.now().plusDays(2));
+		createReq.setSellerId("student-tablelamp-seller");
+		ListingResponse created = listingService.createListing(createReq);
+
+		CopilotChatRequest chatReq = new CopilotChatRequest();
+		chatReq.setMessage(String.format("Help me decide a bid amount for Lot #%d. My budget is ₹30.", created.getId()));
+
+		CopilotChatResponse response = copilotService.processChat(chatReq, "student-bidder-x");
+		assertNotNull(response);
+		assertEquals("BID_ASSISTANCE", response.getIntent());
+		assertNotNull(response.getBidProposal());
+		assertTrue(response.getBidProposal().isRequiresConfirmation()); // Mandatory confirmation
+		assertEquals(new BigDecimal("20.00"), response.getBidProposal().getProposedBid());
+
+		// Verify NO bid was placed yet!
+		ListingResponse current = listingService.getListingById(created.getId());
+		assertTrue(current.getBidHistory() == null || current.getBidHistory().isEmpty());
+	}
+
+	@Test
+	@DisplayName("Copilot: 6. Confirm a valid bid and verify it is saved in MySQL")
+	void testCopilotConfirmValidBid() {
+		CreateListingRequest createReq = new CreateListingRequest();
+		createReq.setTitle("Canvas Backpack Waterproof");
+		createReq.setCategory("Apparel");
+		createReq.setDescription("Heavy duty campus backpack.");
+		createReq.setCondition(ItemCondition.LIKE_NEW);
+		createReq.setStartingPrice(new BigDecimal("25.00"));
+		createReq.setMinBidIncrement(new BigDecimal("5.00"));
+		createReq.setClosingTime(LocalDateTime.now().plusDays(2));
+		createReq.setSellerId("student-backpack-seller");
+		ListingResponse created = listingService.createListing(createReq);
+
+		CopilotConfirmBidRequest confirmReq = new CopilotConfirmBidRequest();
+		confirmReq.setListingId(created.getId());
+		confirmReq.setBidAmount(new BigDecimal("25.00"));
+		confirmReq.setMaxBudget(new BigDecimal("50.00"));
+
+		ListingResponse afterBid = copilotService.confirmBid(confirmReq, "student-backpack-buyer");
+		assertNotNull(afterBid);
+		assertEquals(new BigDecimal("25.00"), afterBid.getCurrentPrice());
+		assertEquals(1, afterBid.getBidHistory().size());
+		assertEquals("student-backpack-buyer", afterBid.getBidHistory().get(0).getBidderId());
+	}
+
+	@Test
+	@DisplayName("Copilot: 7. Try bid above agreed maximum budget and verify rejection")
+	void testCopilotRejectBidAboveMaxBudget() {
+		CreateListingRequest createReq = new CreateListingRequest();
+		createReq.setTitle("Electric Kettle Stainless Steel");
+		createReq.setCategory("Dorm & Furniture");
+		createReq.setDescription("1.5L fast boil.");
+		createReq.setCondition(ItemCondition.GOOD);
+		createReq.setStartingPrice(new BigDecimal("15.00"));
+		createReq.setMinBidIncrement(new BigDecimal("2.00"));
+		createReq.setClosingTime(LocalDateTime.now().plusDays(2));
+		createReq.setSellerId("student-kettle-seller");
+		ListingResponse created = listingService.createListing(createReq);
+
+		CopilotConfirmBidRequest confirmReq = new CopilotConfirmBidRequest();
+		confirmReq.setListingId(created.getId());
+		confirmReq.setBidAmount(new BigDecimal("35.00"));
+		confirmReq.setMaxBudget(new BigDecimal("25.00")); // Proposed bid (35) > maxBudget (25)
+
+		Exception ex = assertThrows(IllegalArgumentException.class, () -> {
+			copilotService.confirmBid(confirmReq, "student-kettle-buyer");
+		});
+		assertTrue(ex.getMessage().contains("exceeds your agreed maximum budget"));
+	}
+
+	@Test
+	@DisplayName("Copilot: 8. Attempt to bid on student's own listing is rejected")
+	void testCopilotBidOnOwnListingRejected() {
+		CreateListingRequest createReq = new CreateListingRequest();
+		createReq.setTitle("Monitor Stand Wooden");
+		createReq.setCategory("Dorm & Furniture");
+		createReq.setDescription("Elevated desk stand.");
+		createReq.setCondition(ItemCondition.LIKE_NEW);
+		createReq.setStartingPrice(new BigDecimal("18.00"));
+		createReq.setMinBidIncrement(new BigDecimal("2.00"));
+		createReq.setClosingTime(LocalDateTime.now().plusDays(2));
+		createReq.setSellerId("student-self-seller");
+		ListingResponse created = listingService.createListing(createReq);
+
+		CopilotChatRequest chatReq = new CopilotChatRequest();
+		chatReq.setMessage(String.format("Help me bid on Lot #%d", created.getId()));
+
+		// Seller attempts to bid on their own lot
+		CopilotChatResponse response = copilotService.processChat(chatReq, "student-self-seller");
+		assertNotNull(response);
+		assertTrue(response.getReply().contains("Seller Bidding Prohibited"));
+	}
+
+	@Test
+	@DisplayName("Copilot: 9. Unauthenticated user cannot confirm bid")
+	void testCopilotUnauthenticatedCannotConfirmBid() {
+		CopilotConfirmBidRequest confirmReq = new CopilotConfirmBidRequest();
+		confirmReq.setListingId(1L);
+		confirmReq.setBidAmount(new BigDecimal("600.00"));
+
+		assertThrows(UnauthorizedException.class, () -> {
+			copilotService.confirmBid(confirmReq, null);
+		});
+	}
+
+	@Test
+	@DisplayName("Copilot: 10. Explain rules intent returns full CampusBid bidding explanation")
+	void testCopilotExplainBiddingRules() {
+		CopilotChatRequest chatReq = new CopilotChatRequest();
+		chatReq.setMessage("Explain how bidding works in CampusBid.");
+
+		CopilotChatResponse response = copilotService.processChat(chatReq, "student-101");
+		assertNotNull(response);
+		assertEquals("EXPLAIN_RULES", response.getIntent());
+		assertTrue(response.getReply().contains("How CampusBid Auction Bidding Works"));
+		assertTrue(response.getReply().contains("Mandatory Confirmation"));
 	}
 }
 
