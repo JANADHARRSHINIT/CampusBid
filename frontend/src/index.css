@@ -1,111 +1,131 @@
+/* ==========================================================================
+   CampusBid — Campus Flea Market Design System Tokens
+   Aesthetic: Warm Ivory, Forest Green, Bidding Orange, Editorial Typography
+   ========================================================================== */
+
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  /* Warm Ivory Canvas */
+  --bg-canvas: #FAF7F2;
+  --bg-canvas-warm: #F4EFE6;
+  --bg-canvas-sunken: #EFE9DE;
+  --bg-card: #FFFFFF;
+  --bg-card-muted: #FAF7F2;
+  --bg-ticket: #FFFDF9;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  /* Ruled Borders & Print Dividers */
+  --border-hairline: #ECE5DA;
+  --border-subtle: #E2D9CC;
+  --border-strong: #C9BDAA;
+  --border-dark: #1C4D35;
+  --border-dashed: #D8CDBC;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  /* Forest Green Palette (Primary) */
+  --forest-900: #0E271B;
+  --forest-800: #143827;
+  --forest-primary: #1C4D35; /* Primary Brand */
+  --forest-600: #266847;
+  --forest-500: #31825B;
+  --forest-100: #EBF3EE;
+  --forest-50: #F3F8F5;
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  /* Orange Bidding Accents */
+  --bidding-orange: #E65100; /* Auction / Bidding Action */
+  --bidding-orange-hover: #CF4900;
+  --bidding-orange-deep: #BF360C;
+  --bidding-orange-light: #FFF2EB;
+  --bidding-orange-border: #FDC6AC;
+  --bidding-amber: #C2410C;
+
+  /* Editorial Ink & Typography */
+  --text-headline: #131A16;
+  --text-body: #323A35;
+  --text-muted: #647068;
+  --text-caption: #7D8880;
+
+  /* Stamps & Field Badges */
+  --stamp-mint-bg: #EDF7F2;
+  --stamp-mint-border: #95D5B2;
+  --stamp-mint-text: #1B4D36;
+
+  --stamp-forest-bg: #E8F0EC;
+  --stamp-forest-border: #74A88E;
+  --stamp-forest-text: #143827;
+
+  --stamp-sepia-bg: #F5EFEB;
+  --stamp-sepia-border: #D5C3B3;
+  --stamp-sepia-text: #5A483C;
+
+  --stamp-amber-bg: #FFF8E6;
+  --stamp-amber-border: #F3CF7A;
+  --stamp-amber-text: #8C5400;
+
+  --stamp-rust-bg: #FBEFEF;
+  --stamp-rust-border: #E8B4B4;
+  --stamp-rust-text: #8A2C2C;
+
+  /* Typography Stacks */
+  --font-serif: 'Newsreader', Georgia, Cambria, 'Times New Roman', serif;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', Courier, monospace;
+
+  /* Refined, Non-Excessive Radii */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 20px;
+
+  /* Tactile Paper Shadows */
+  --shadow-paper: 0 1px 3px rgba(20, 40, 30, 0.05), 0 1px 2px rgba(20, 40, 30, 0.03);
+  --shadow-card: 0 4px 12px -2px rgba(20, 40, 30, 0.06), 0 2px 4px -1px rgba(20, 40, 30, 0.04);
+  --shadow-elevated: 0 12px 28px -4px rgba(20, 40, 30, 0.12), 0 4px 10px -2px rgba(20, 40, 30, 0.06);
+  --shadow-ticket: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 2px 4px rgba(230, 81, 0, 0.08);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
-body {
-  margin: 0;
-}
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
+* {
   box-sizing: border-box;
-}
-
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
   margin: 0;
+  padding: 0;
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+html, body {
+  background-color: var(--bg-canvas);
+  color: var(--text-body);
+  font-family: var(--font-sans);
+  line-height: 1.55;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Subtle flecks / paper texture feel */
+body {
+  background-image: 
+    radial-gradient(var(--border-hairline) 0.75px, transparent 0.75px),
+    radial-gradient(var(--border-hairline) 0.75px, var(--bg-canvas) 0.75px);
+  background-size: 32px 32px;
+  background-position: 0 0, 16px 16px;
+}
+
+button {
+  font-family: var(--font-sans);
+  cursor: pointer;
+  border: none;
+  background: none;
+  transition: all 0.18s cubic-bezier(0.2, 0, 0, 1);
+}
+
+input, select, textarea {
+  font-family: var(--font-sans);
+  color: inherit;
 }
 
 code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  padding: 0.12em 0.35em;
+  border-radius: var(--radius-xs);
+  background-color: var(--bg-canvas-warm);
+  border: 1px solid var(--border-subtle);
+  color: var(--forest-800);
 }
