@@ -26,6 +26,7 @@ export const copilotApi = {
     const res = await fetch('/api/copilot/chat', {
       method: 'POST',
       headers: getHeaders(studentId, true),
+      credentials: 'include',
       body: JSON.stringify({
         message,
         contextListingId: contextListingId ? Number(contextListingId) : null,
@@ -57,6 +58,7 @@ export const copilotApi = {
     const res = await fetch('/api/copilot/confirm-bid', {
       method: 'POST',
       headers: getHeaders(studentId, true),
+      credentials: 'include',
       body: JSON.stringify({
         listingId: Number(listingId),
         bidAmount: Number(bidAmount),

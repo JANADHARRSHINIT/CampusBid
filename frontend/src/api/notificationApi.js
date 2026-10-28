@@ -20,6 +20,7 @@ export const notificationApi = {
   async getNotifications(studentId) {
     const res = await fetch('/api/notifications', {
       headers: getHeaders(studentId, false),
+      credentials: 'include',
     });
     const data = await res.json();
     if (!res.ok) {
@@ -34,6 +35,7 @@ export const notificationApi = {
   async getUnreadCount(studentId) {
     const res = await fetch('/api/notifications/unread-count', {
       headers: getHeaders(studentId, false),
+      credentials: 'include',
     });
     const data = await res.json();
     if (!res.ok) {
@@ -49,6 +51,7 @@ export const notificationApi = {
     const res = await fetch(`/api/notifications/${id}/read`, {
       method: 'POST',
       headers: getHeaders(studentId, true),
+      credentials: 'include',
     });
     const data = await res.json();
     if (!res.ok) {
@@ -64,6 +67,7 @@ export const notificationApi = {
     const res = await fetch('/api/notifications/read-all', {
       method: 'POST',
       headers: getHeaders(studentId, true),
+      credentials: 'include',
     });
     const data = await res.json();
     if (!res.ok) {

@@ -3,10 +3,14 @@ package com.campusbid.backend.config;
 import com.campusbid.backend.model.ItemCondition;
 import com.campusbid.backend.model.Listing;
 import com.campusbid.backend.model.ListingStatus;
+import com.campusbid.backend.model.Role;
+import com.campusbid.backend.model.User;
 import com.campusbid.backend.repository.ListingRepository;
+import com.campusbid.backend.repository.UserRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -16,8 +20,35 @@ import java.util.List;
 public class DataInitializer {
 
     @Bean
-    public CommandLineRunner initDatabase(ListingRepository repository) {
+    public CommandLineRunner initDatabase(ListingRepository repository,
+                                         UserRepository userRepository,
+                                         PasswordEncoder passwordEncoder) {
         return args -> {
+            // 1. Seed initial verified campus accounts if not present
+            if (userRepository.count() == 0) {
+                User student1 = new User("Alex Chen", "alex.chen@campus.edu",
+                        passwordEncoder.encode("Password123!"), Role.STUDENT, "student-101");
+                student1.setEmailVerified(true);
+                userRepository.save(student1);
+
+                User student2 = new User("Maya Patel", "maya.patel@campus.edu",
+                        passwordEncoder.encode("Password123!"), Role.STUDENT, "student-102");
+                student2.setEmailVerified(true);
+                userRepository.save(student2);
+
+                User student3 = new User("Rohan Sharma", "rohan.sharma@campus.edu",
+                        passwordEncoder.encode("Password123!"), Role.STUDENT, "student-103");
+                student3.setEmailVerified(true);
+                userRepository.save(student3);
+
+                User admin = new User("Campus Administrator", "admin@campusbid.edu",
+                        passwordEncoder.encode("AdminPassword123!"), Role.ADMIN, "admin-001");
+                admin.setEmailVerified(true);
+                userRepository.save(admin);
+
+                System.out.println(">>> CampusBid Initial Student & Admin Accounts Seeded with BCrypt! <<<");
+            }
+
             if (repository.count() == 0) {
                 // Listing 1: Electronics
                 Listing item1 = new Listing();

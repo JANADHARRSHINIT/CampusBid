@@ -1,0 +1,51 @@
+# ==============================================================================
+# CampusBid - Safe Mail & SMTP Configuration Guide
+# ==============================================================================
+#
+# IMPORTANT:
+# NEVER commit your actual email password or Google App Password to Git.
+#
+# HOW TO CONFIGURE GMAIL SMTP SAFELY:
+# 1. Enable 2-Step Verification on your Google Account:
+#    Go to: https://myaccount.google.com/security -> "2-Step Verification"
+# 2. Generate a dedicated Google App Password:
+#    Go to: https://myaccount.google.com/apppasswords
+#    - Select app: "Mail" (or type "CampusBid")
+#    - Select device: "Other" -> name it "CampusBid Local"
+#    - Google will generate a 16-character password (e.g., abcd efgh ijkl mnop)
+# 3. DO NOT use your personal Gmail login password; use ONLY the 16-character App Password.
+# 4. Set these environment variables in your terminal or .env before starting Spring Boot:
+#
+#    Windows PowerShell:
+#      $env:CAMPUS_MAIL_ENABLED = "true"
+#      $env:SPRING_MAIL_HOST = "smtp.gmail.com"
+#      $env:SPRING_MAIL_PORT = "587"
+#      $env:SPRING_MAIL_USERNAME = "your-college-email@gmail.com"
+#      $env:SPRING_MAIL_PASSWORD = "your-16-char-app-password"
+#      $env:CAMPUS_MAIL_FROM = "your-college-email@gmail.com"
+#
+#    Linux/macOS Bash:
+#      export CAMPUS_MAIL_ENABLED="true"
+#      export SPRING_MAIL_HOST="smtp.gmail.com"
+#      export SPRING_MAIL_PORT="587"
+#      export SPRING_MAIL_USERNAME="your-college-email@gmail.com"
+#      export SPRING_MAIL_PASSWORD="your-16-char-app-password"
+#      export CAMPUS_MAIL_FROM="your-college-email@gmail.com"
+#
+# ==============================================================================
+
+# Enable live email dispatch (set to true when credentials are provided)
+campusbid.mail.enabled=false
+
+# SMTP Server details
+spring.mail.host=smtp.gmail.com
+spring.mail.port=587
+spring.mail.username=your-account@gmail.com
+spring.mail.password=your-16-character-app-password
+spring.mail.properties.mail.smtp.auth=true
+spring.mail.properties.mail.smtp.starttls.enable=true
+spring.mail.properties.mail.smtp.starttls.required=true
+
+# Sender display address
+campusbid.mail.from=noreply@campusbid.edu
+campusbid.app.base-url=http://localhost:5174

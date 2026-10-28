@@ -5,12 +5,14 @@ import com.campusbid.backend.dto.CreateListingRequest;
 import com.campusbid.backend.dto.ListingResponse;
 import com.campusbid.backend.dto.UpdateListingRequest;
 import com.campusbid.backend.model.ListingStatus;
+import com.campusbid.backend.security.UserPrincipal;
 import com.campusbid.backend.service.FileStorageService;
 import com.campusbid.backend.service.ListingService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -29,27 +31,51 @@ public class ListingController {
         this.fileStorageService = fileStorageService;
     }
 
+    private String resolveStudentId(UserPrincipal principal, String headerStudentId, String paramStudentId) {
+        if (principal != null) {
+            return principal.getStudentId() != null ? principal.getStudentId() : principal.getEmail();
+        }
+        if (headerStudentId != null && !headerStudentId.isBlank()) {
+            return headerStudentId.trim();
+        }
+        if (paramStudentId != null && !paramStudentId.isBlank()) {
+            return paramStudentId.trim();
+        }
+        return null;
+    }
+
     /**
      * Upload one or more item photos (validates size and types).
      */
     @PostMapping(value = "/upload-images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ApiResponse<List<String>>> uploadImages(@RequestParam("files") MultipartFile[] files) {
+    public ResponseEntity<ApiResponse<List<String>>> uploadImages(
+            @RequestParam("files") MultipartFile[] files,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required to upload photos."));
+        }
         List<String> storedUrls = fileStorageService.storeFiles(files);
         return ResponseEntity.ok(ApiResponse.success("Photos uploaded successfully", storedUrls));
     }
 
     /**
      * Create a new item listing.
+     * Seller identity is authoritatively derived from the authenticated principal.
      */
     @PostMapping
     public ResponseEntity<ApiResponse<ListingResponse>> createListing(
             @Valid @RequestBody CreateListingRequest request,
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestHeader(value = "X-Student-Id", required = false) String headerStudentId
     ) {
-        // Fallback to request header if sellerId wasn't in body or vice versa
-        if ((request.getSellerId() == null || request.getSellerId().isBlank()) && headerStudentId != null) {
-            request.setSellerId(headerStudentId);
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required to create an auction listing."));
         }
+        request.setSellerId(principal.getStudentId() != null ? principal.getStudentId() : principal.getEmail());
+        request.setSellerName(principal.getFullName());
+        request.setSellerEmail(principal.getEmail());
         ListingResponse created = listingService.createListing(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Listing created successfully", created));
@@ -110,10 +136,15 @@ public class ListingController {
     public ResponseEntity<ApiResponse<ListingResponse>> updateListing(
             @PathVariable Long id,
             @Valid @RequestBody UpdateListingRequest request,
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestHeader(value = "X-Student-Id", required = false) String studentId,
             @RequestParam(value = "sellerId", required = false) String paramSellerId
     ) {
-        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramSellerId;
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required to update listings."));
+        }
+        String effectiveStudentId = resolveStudentId(principal, studentId, paramSellerId);
         ListingResponse updated = listingService.updateListing(id, request, effectiveStudentId);
         return ResponseEntity.ok(ApiResponse.success("Listing updated successfully", updated));
     }
@@ -125,10 +156,15 @@ public class ListingController {
     @PostMapping("/{id}/cancel")
     public ResponseEntity<ApiResponse<ListingResponse>> cancelListingPost(
             @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestHeader(value = "X-Student-Id", required = false) String studentId,
             @RequestParam(value = "sellerId", required = false) String paramSellerId
     ) {
-        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramSellerId;
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required to cancel listings."));
+        }
+        String effectiveStudentId = resolveStudentId(principal, studentId, paramSellerId);
         ListingResponse cancelled = listingService.cancelListing(id, effectiveStudentId);
         return ResponseEntity.ok(ApiResponse.success("Listing cancelled successfully", cancelled));
     }
@@ -139,25 +175,38 @@ public class ListingController {
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<ListingResponse>> cancelListingDelete(
             @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestHeader(value = "X-Student-Id", required = false) String studentId,
             @RequestParam(value = "sellerId", required = false) String paramSellerId
     ) {
-        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramSellerId;
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required to cancel listings."));
+        }
+        String effectiveStudentId = resolveStudentId(principal, studentId, paramSellerId);
         ListingResponse cancelled = listingService.cancelListing(id, effectiveStudentId);
         return ResponseEntity.ok(ApiResponse.success("Listing cancelled successfully", cancelled));
     }
 
     /**
      * Place a bid on an active auction.
+     * Bidder identity is strictly derived from the authenticated principal.
      */
     @PostMapping("/{id}/bids")
     public ResponseEntity<ApiResponse<ListingResponse>> placeBid(
             @PathVariable Long id,
             @Valid @RequestBody com.campusbid.backend.dto.PlaceBidRequest request,
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestHeader(value = "X-Student-Id", required = false) String studentId,
             @RequestParam(value = "bidderId", required = false) String paramBidderId
     ) {
-        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramBidderId;
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Please sign in to place a bid."));
+        }
+        String effectiveStudentId = resolveStudentId(principal, studentId, paramBidderId);
+        request.setBidderId(effectiveStudentId);
+        request.setBidderName(principal.getFullName());
         ListingResponse updated = listingService.placeBid(id, request, effectiveStudentId);
         return ResponseEntity.ok(ApiResponse.success(
                 String.format("Bid of $%.2f placed successfully!", request.getAmount()),
@@ -179,14 +228,15 @@ public class ListingController {
      */
     @GetMapping("/my-listings")
     public ResponseEntity<ApiResponse<List<ListingResponse>>> getMyListings(
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestHeader(value = "X-Student-Id", required = false) String studentId,
             @RequestParam(value = "sellerId", required = false) String paramSellerId
     ) {
-        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramSellerId;
-        if (effectiveStudentId == null || effectiveStudentId.isBlank()) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("Student ID is required via X-Student-Id header or sellerId parameter."));
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required to access personal listings."));
         }
+        String effectiveStudentId = resolveStudentId(principal, studentId, paramSellerId);
         List<ListingResponse> listings = listingService.getListingsBySeller(effectiveStudentId);
         return ResponseEntity.ok(ApiResponse.success("Seller listings retrieved", listings));
     }
@@ -196,14 +246,15 @@ public class ListingController {
      */
     @GetMapping("/pending-decisions")
     public ResponseEntity<ApiResponse<List<ListingResponse>>> getPendingDecisions(
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestHeader(value = "X-Student-Id", required = false) String studentId,
             @RequestParam(value = "sellerId", required = false) String paramSellerId
     ) {
-        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramSellerId;
-        if (effectiveStudentId == null || effectiveStudentId.isBlank()) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("Student ID is required via X-Student-Id header or sellerId parameter."));
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required to review pending decisions."));
         }
+        String effectiveStudentId = resolveStudentId(principal, studentId, paramSellerId);
         List<ListingResponse> pending = listingService.getPendingDecisions(effectiveStudentId);
         return ResponseEntity.ok(ApiResponse.success("Pending decisions retrieved", pending));
     }
@@ -213,14 +264,15 @@ public class ListingController {
      */
     @GetMapping("/won")
     public ResponseEntity<ApiResponse<List<ListingResponse>>> getWonListings(
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestHeader(value = "X-Student-Id", required = false) String studentId,
             @RequestParam(value = "studentId", required = false) String paramStudentId
     ) {
-        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramStudentId;
-        if (effectiveStudentId == null || effectiveStudentId.isBlank()) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("Student ID is required via X-Student-Id header or studentId parameter."));
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required to view won lots."));
         }
+        String effectiveStudentId = resolveStudentId(principal, studentId, paramStudentId);
         List<ListingResponse> won = listingService.getWonListings(effectiveStudentId);
         return ResponseEntity.ok(ApiResponse.success("Won listings retrieved", won));
     }
@@ -232,10 +284,15 @@ public class ListingController {
     public ResponseEntity<ApiResponse<ListingResponse>> processDecision(
             @PathVariable Long id,
             @Valid @RequestBody com.campusbid.backend.dto.SellerDecisionRequest request,
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestHeader(value = "X-Student-Id", required = false) String studentId,
             @RequestParam(value = "sellerId", required = false) String paramSellerId
     ) {
-        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramSellerId;
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required to manage auction decisions."));
+        }
+        String effectiveStudentId = resolveStudentId(principal, studentId, paramSellerId);
         ListingResponse updated = listingService.processSellerDecision(
                 id,
                 request.getDecision(),
@@ -255,10 +312,15 @@ public class ListingController {
     public ResponseEntity<ApiResponse<ListingResponse>> approveWinningBid(
             @PathVariable Long id,
             @RequestBody(required = false) com.campusbid.backend.dto.SellerDecisionRequest request,
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestHeader(value = "X-Student-Id", required = false) String studentId,
             @RequestParam(value = "sellerId", required = false) String paramSellerId
     ) {
-        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramSellerId;
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required to manage auction decisions."));
+        }
+        String effectiveStudentId = resolveStudentId(principal, studentId, paramSellerId);
         String notes = request != null ? request.getNotes() : null;
         ListingResponse updated = listingService.processSellerDecision(id, "APPROVE", notes, effectiveStudentId);
         return ResponseEntity.ok(ApiResponse.success("Winning bid approved! Item reserved for buyer.", updated));
@@ -271,10 +333,15 @@ public class ListingController {
     public ResponseEntity<ApiResponse<ListingResponse>> rejectWinningBid(
             @PathVariable Long id,
             @RequestBody(required = false) com.campusbid.backend.dto.SellerDecisionRequest request,
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestHeader(value = "X-Student-Id", required = false) String studentId,
             @RequestParam(value = "sellerId", required = false) String paramSellerId
     ) {
-        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramSellerId;
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required to manage auction decisions."));
+        }
+        String effectiveStudentId = resolveStudentId(principal, studentId, paramSellerId);
         String notes = request != null ? request.getNotes() : null;
         ListingResponse updated = listingService.processSellerDecision(id, "REJECT", notes, effectiveStudentId);
         return ResponseEntity.ok(ApiResponse.success("Winning bid rejected.", updated));
@@ -286,10 +353,15 @@ public class ListingController {
     @PostMapping("/{id}/confirm-handover")
     public ResponseEntity<ApiResponse<ListingResponse>> confirmHandover(
             @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestHeader(value = "X-Student-Id", required = false) String studentId,
             @RequestParam(value = "studentId", required = false) String paramStudentId
     ) {
-        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramStudentId;
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required to confirm handover."));
+        }
+        String effectiveStudentId = resolveStudentId(principal, studentId, paramStudentId);
         ListingResponse updated = listingService.confirmHandover(id, effectiveStudentId);
         String msg = updated.getStatus() == com.campusbid.backend.model.ListingStatus.COMPLETED
                 ? "🎉 Campus handover confirmed by both parties! Sale COMPLETED."
@@ -303,10 +375,11 @@ public class ListingController {
     @PostMapping("/{id}/finalize-handover")
     public ResponseEntity<ApiResponse<ListingResponse>> finalizeHandover(
             @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestHeader(value = "X-Student-Id", required = false) String studentId,
             @RequestParam(value = "studentId", required = false) String paramStudentId
     ) {
-        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramStudentId;
+        String effectiveStudentId = resolveStudentId(principal, studentId, paramStudentId);
         ListingResponse updated = listingService.finalizeHandover(id, effectiveStudentId);
         return ResponseEntity.ok(ApiResponse.success("🎉 Campus handover finalized! Sale COMPLETED.", updated));
     }
@@ -318,10 +391,11 @@ public class ListingController {
     public ResponseEntity<ApiResponse<ListingResponse>> cancelSale(
             @PathVariable Long id,
             @RequestBody(required = false) com.campusbid.backend.dto.CancelSaleRequest request,
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestHeader(value = "X-Student-Id", required = false) String studentId,
             @RequestParam(value = "studentId", required = false) String paramStudentId
     ) {
-        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramStudentId;
+        String effectiveStudentId = resolveStudentId(principal, studentId, paramStudentId);
         String reason = request != null ? request.getReason() : "Sale cancelled / failed pickup";
         ListingResponse updated = listingService.cancelSale(id, reason, effectiveStudentId);
         return ResponseEntity.ok(ApiResponse.success("Sale cancelled. Listing updated.", updated));
@@ -333,10 +407,11 @@ public class ListingController {
     @PostMapping("/{id}/close")
     public ResponseEntity<ApiResponse<ListingResponse>> closeAuction(
             @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestHeader(value = "X-Student-Id", required = false) String studentId,
             @RequestParam(value = "sellerId", required = false) String paramSellerId
     ) {
-        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramSellerId;
+        String effectiveStudentId = resolveStudentId(principal, studentId, paramSellerId);
         ListingResponse updated = listingService.closeAuction(id, effectiveStudentId);
         return ResponseEntity.ok(ApiResponse.success("Auction closed successfully.", updated));
     }

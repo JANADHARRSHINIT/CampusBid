@@ -27,10 +27,19 @@ public class ListingService {
 
     private final ListingRepository listingRepository;
     private final NotificationService notificationService;
+    private final WantedItemService wantedItemService;
 
     public ListingService(ListingRepository listingRepository, NotificationService notificationService) {
+        this(listingRepository, notificationService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ListingService(ListingRepository listingRepository,
+                          NotificationService notificationService,
+                          @org.springframework.beans.factory.annotation.Autowired(required = false) WantedItemService wantedItemService) {
         this.listingRepository = listingRepository;
         this.notificationService = notificationService;
+        this.wantedItemService = wantedItemService;
     }
 
     public ListingResponse createListing(CreateListingRequest request) {
@@ -64,6 +73,12 @@ public class ListingService {
         }
 
         Listing saved = listingRepository.save(listing);
+
+        // Smart alerts: automatically scan and match active wanted items
+        if (wantedItemService != null) {
+            wantedItemService.checkAndAlertMatches(saved);
+        }
+
         return ListingResponse.fromEntity(saved);
     }
 

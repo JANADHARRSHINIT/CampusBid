@@ -14,6 +14,7 @@ const NOTIF_ICONS = {
   HANDOVER_CONFIRMED: '🤝',
   SALE_COMPLETED: '🎉',
   SALE_CANCELLED: '🛑',
+  WANTED_ITEM_MATCH: '🎯',
 };
 
 export default function NotificationModal({

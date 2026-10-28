@@ -14,5 +14,6 @@ public enum NotificationType {
     AWAITING_APPROVAL,   // Seller: Winning bid is waiting for your approval
     HANDOVER_CONFIRMED,  // Either party: Campus handover confirmed by counterpart
     SALE_COMPLETED,      // Both parties: Campus exchange confirmed and sale completed
-    SALE_CANCELLED       // Either party: Sale cancelled or failed pickup recorded
+    SALE_CANCELLED,      // Either party: Sale cancelled or failed pickup recorded
+    WANTED_ITEM_MATCH    // Buyer: A new auction listing matches their wanted item request
 }

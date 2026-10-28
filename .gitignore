@@ -7,3 +7,7 @@
 *.sw?
 .DS_Store
 Thumbs.db
+*.env
+*.env.local
+*application-mail.properties
+*.local.properties

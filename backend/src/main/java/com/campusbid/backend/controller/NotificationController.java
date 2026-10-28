@@ -2,8 +2,10 @@ package com.campusbid.backend.controller;
 
 import com.campusbid.backend.dto.ApiResponse;
 import com.campusbid.backend.dto.NotificationResponse;
+import com.campusbid.backend.security.UserPrincipal;
 import com.campusbid.backend.service.NotificationService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,14 +21,27 @@ public class NotificationController {
         this.notificationService = notificationService;
     }
 
+    private String resolveStudentId(UserPrincipal principal, String headerStudentId) {
+        if (principal != null) {
+            return principal.getStudentId() != null ? principal.getStudentId() : principal.getEmail();
+        }
+        return (headerStudentId != null && !headerStudentId.isBlank()) ? headerStudentId.trim() : null;
+    }
+
     /**
      * Retrieve all notifications for the active student, newest first.
      */
     @GetMapping
     public ResponseEntity<ApiResponse<List<NotificationResponse>>> getNotifications(
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestHeader(value = "X-Student-Id", required = false) String studentId) {
 
-        List<NotificationResponse> notifications = notificationService.getNotificationsForRecipient(studentId);
+        if (principal == null) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required to access notifications."));
+        }
+        String effectiveStudentId = resolveStudentId(principal, studentId);
+        List<NotificationResponse> notifications = notificationService.getNotificationsForRecipient(effectiveStudentId);
         return ResponseEntity.ok(ApiResponse.success(
                 "Notifications retrieved successfully",
                 notifications
@@ -38,9 +53,15 @@ public class NotificationController {
      */
     @GetMapping("/unread-count")
     public ResponseEntity<ApiResponse<Long>> getUnreadCount(
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestHeader(value = "X-Student-Id", required = false) String studentId) {
 
-        long count = notificationService.getUnreadCount(studentId);
+        if (principal == null) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required to access notification count."));
+        }
+        String effectiveStudentId = resolveStudentId(principal, studentId);
+        long count = notificationService.getUnreadCount(effectiveStudentId);
         return ResponseEntity.ok(ApiResponse.success(
                 "Unread notification count retrieved",
                 count
@@ -53,9 +74,15 @@ public class NotificationController {
     @RequestMapping(value = "/{id}/read", method = {RequestMethod.PATCH, RequestMethod.PUT, RequestMethod.POST})
     public ResponseEntity<ApiResponse<NotificationResponse>> markAsRead(
             @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestHeader(value = "X-Student-Id", required = false) String studentId) {
 
-        NotificationResponse updated = notificationService.markAsRead(id, studentId);
+        if (principal == null) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required to update notifications."));
+        }
+        String effectiveStudentId = resolveStudentId(principal, studentId);
+        NotificationResponse updated = notificationService.markAsRead(id, effectiveStudentId);
         return ResponseEntity.ok(ApiResponse.success(
                 "Notification marked as read",
                 updated
@@ -67,9 +94,15 @@ public class NotificationController {
      */
     @RequestMapping(value = "/mark-all-read", method = {RequestMethod.PATCH, RequestMethod.PUT, RequestMethod.POST})
     public ResponseEntity<ApiResponse<Integer>> markAllAsRead(
+            @AuthenticationPrincipal UserPrincipal principal,
             @RequestHeader(value = "X-Student-Id", required = false) String studentId) {
 
-        int updatedCount = notificationService.markAllAsRead(studentId);
+        if (principal == null) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required to update notifications."));
+        }
+        String effectiveStudentId = resolveStudentId(principal, studentId);
+        int updatedCount = notificationService.markAllAsRead(effectiveStudentId);
         return ResponseEntity.ok(ApiResponse.success(
                 "All notifications marked as read",
                 updatedCount

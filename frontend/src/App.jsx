@@ -7,22 +7,40 @@ import CancelModal from './components/CancelModal';
 import ListingDetailModal from './components/ListingDetailModal';
 import CopilotDrawer from './components/CopilotDrawer';
 import NotificationModal from './components/NotificationModal';
+import AuthModal from './components/AuthModal';
+import UserProfileModal from './components/UserProfileModal';
+import WantedDashboard from './components/WantedDashboard';
 import Toast from './components/Toast';
 import { listingApi } from './api/listingApi';
 import { notificationApi } from './api/notificationApi';
-import { CAMPUS_STUDENTS, CATEGORIES, CATEGORY_ICONS } from './constants';
+import { wantedApi } from './api/wantedApi';
+import { useAuth } from './context/AuthContext';
+import { CATEGORIES, CATEGORY_ICONS } from './constants';
 import './App.css';
 
 export default function App() {
-  const [currentStudent, setCurrentStudent] = useState(CAMPUS_STUDENTS[0]);
+  const { user, isAuthenticated, isAdmin, openAuthModal } = useAuth();
+
+  const currentStudent = user
+    ? {
+        id: user.studentId || user.email,
+        name: user.fullName,
+        email: user.email,
+        role: user.role,
+        avatar: user.role === 'ADMIN' ? '🛡️' : '🎓',
+      }
+    : null;
+
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('active'); // 'active' | 'decisions' | 'won' | 'my-listings' | 'all'
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   // Sale tracking stats & Notifications
   const [pendingDecisions, setPendingDecisions] = useState([]);
   const [wonListings, setWonListings] = useState([]);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const [wantedCount, setWantedCount] = useState(0);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
   // Search & Filter state
@@ -51,6 +69,17 @@ export default function App() {
   const showToast = useCallback((message, type = 'info') => {
     setToast({ message, type });
   }, []);
+
+  const handleOpenListing = useCallback(async (lotId) => {
+    try {
+      const lot = await listingApi.getListingById(lotId);
+      if (lot) {
+        setDetailTarget(lot);
+      }
+    } catch {
+      showToast('Could not load listing details.', 'error');
+    }
+  }, [showToast]);
 
   // Debounce search keyword (300ms) to ensure smooth typing without API thrashing
   useEffect(() => {
@@ -90,16 +119,25 @@ export default function App() {
   useEffect(() => {
     let ignore = false;
     async function loadSaleStats() {
+      if (!currentStudent?.id) {
+        setPendingDecisions([]);
+        setWonListings([]);
+        setUnreadNotifCount(0);
+        setWantedCount(0);
+        return;
+      }
       try {
-        const [pending, won, unread] = await Promise.all([
+        const [pending, won, unread, wantedList] = await Promise.all([
           listingApi.getPendingDecisions(currentStudent.id),
           listingApi.getWonListings(currentStudent.id),
           notificationApi.getUnreadCount(currentStudent.id),
+          wantedApi.getMyWantedItems().catch(() => []),
         ]);
         if (!ignore) {
           setPendingDecisions(pending || []);
           setWonListings(won || []);
           setUnreadNotifCount(unread || 0);
+          setWantedCount((wantedList || []).length);
         }
       } catch {
         // fail gracefully
@@ -109,7 +147,14 @@ export default function App() {
     return () => {
       ignore = true;
     };
-  }, [currentStudent.id, refreshTrigger]);
+  }, [currentStudent?.id, refreshTrigger]);
+
+  // In guest mode, restrict navigation to public 'active' auctions
+  useEffect(() => {
+    if (!isAuthenticated && activeTab !== 'active') {
+      setActiveTab('active');
+    }
+  }, [isAuthenticated, activeTab]);
 
   // Fetch listings based on current tab, multi-criteria filters, and keyword search
   useEffect(() => {
@@ -120,13 +165,31 @@ export default function App() {
         setLoading(true);
         let data = [];
 
+        if (activeTab === 'wanted') {
+          setLoading(false);
+          return;
+        }
+
         if (activeTab === 'decisions') {
-          // Closed lots consigned by current student awaiting their decision
+          if (!currentStudent?.id) {
+            setListings([]);
+            setLoading(false);
+            return;
+          }
           data = await listingApi.getPendingDecisions(currentStudent.id);
         } else if (activeTab === 'won') {
-          // Lots won by current student
+          if (!currentStudent?.id) {
+            setListings([]);
+            setLoading(false);
+            return;
+          }
           data = await listingApi.getWonListings(currentStudent.id);
         } else if (activeTab === 'my-listings') {
+          if (!currentStudent?.id) {
+            setListings([]);
+            setLoading(false);
+            return;
+          }
           const raw = await listingApi.getMyListings(currentStudent.id);
           // Client-side filter for seller's personal lots
           data = raw.filter((item) => {
@@ -191,44 +254,61 @@ export default function App() {
     closingSoon,
     sortBy,
     debouncedKeyword,
-    currentStudent.id,
+    currentStudent?.id,
     refreshTrigger,
     showToast,
   ]);
 
   // Calculate summary stats
   const activeCount = listings.filter((l) => l.status === 'ACTIVE' && !l.expired).length;
-  const myCount = listings.filter((l) => l.sellerId === currentStudent.id).length;
+  const myCount = currentStudent?.id ? listings.filter((l) => l.sellerId === currentStudent.id).length : 0;
 
   return (
     <div className="app-shell">
       {/* Top Navigation */}
       <Navbar
-        currentStudent={currentStudent}
-        onStudentChange={(newStudent) => {
-          setCurrentStudent(newStudent);
-          showToast(`Active account: ${newStudent.name} (${newStudent.id})`, 'info');
-        }}
         activeTab={activeTab}
         onTabChange={(tab) => {
           setActiveTab(tab);
           clearAllFilters();
         }}
-        onCreateClick={() => setIsCreateOpen(true)}
-        onNotificationsClick={() => setIsNotificationsOpen(true)}
+        onCreateClick={() => {
+          if (!isAuthenticated) {
+            openAuthModal('login', 'Please sign in to create an auction listing.');
+            return;
+          }
+          setIsCreateOpen(true);
+        }}
+        onNotificationsClick={() => {
+          if (!isAuthenticated) {
+            openAuthModal('login', 'Please sign in to view your notifications.');
+            return;
+          }
+          setIsNotificationsOpen(true);
+        }}
+        onProfileClick={() => setIsProfileOpen(true)}
         unreadNotifCount={unreadNotifCount}
         stats={{
           activeCount,
           myCount,
           pendingCount: pendingDecisions.length,
           wonCount: wonListings.length,
+          wantedCount,
         }}
       />
 
       {/* Main Content Area */}
       <main className="main-content">
-        {/* Seller Pending Decision Alert Banner */}
-        {pendingDecisions.length > 0 && activeTab !== 'decisions' && (
+        {activeTab === 'wanted' ? (
+          <WantedDashboard
+            onViewListing={handleOpenListing}
+            showToast={showToast}
+            onWantedCountChange={(cnt) => setWantedCount(cnt)}
+          />
+        ) : (
+          <>
+            {/* Seller Pending Decision Alert Banner (authenticated sellers only) */}
+            {isAuthenticated && pendingDecisions.length > 0 && activeTab !== 'decisions' && (
           <div className="seller-pending-alert-banner">
             <div className="alert-content">
               <span className="alert-badge">⚡ Action Required</span>
@@ -258,17 +338,37 @@ export default function App() {
             </p>
 
             <div className="hero-cta-row">
-              <button className="btn-primary btn-lg" onClick={() => setIsCreateOpen(true)}>
-                <span>+ Create Listing</span>
-              </button>
-              <button
-                className="btn-outline btn-lg"
-                onClick={() => {
-                  setActiveTab('my-listings');
-                }}
-              >
-                <span>📦 My Listings ({myCount})</span>
-              </button>
+              {isAuthenticated ? (
+                <>
+                  <button
+                    className="btn-primary btn-lg"
+                    onClick={() => setIsCreateOpen(true)}
+                  >
+                    <span>+ Create Listing</span>
+                  </button>
+                  <button
+                    className="btn-outline btn-lg"
+                    onClick={() => setActiveTab('my-listings')}
+                  >
+                    <span>📦 My Listings ({myCount})</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    className="btn-primary btn-lg"
+                    onClick={() => openAuthModal('register')}
+                  >
+                    <span>✨ Join CampusBid / Register</span>
+                  </button>
+                  <button
+                    className="btn-outline btn-lg"
+                    onClick={() => openAuthModal('login')}
+                  >
+                    <span>🔑 Sign In</span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </section>
@@ -451,11 +551,11 @@ export default function App() {
           <div>
             <h2 className="section-title">
               {activeTab === 'decisions'
-                ? `⚡ Seller Decision Station — ${currentStudent.name}`
+                ? `⚡ Seller Decision Station — ${currentStudent?.name || 'Account'}`
                 : activeTab === 'won'
-                ? `🏆 Won Auctions & Handover — ${currentStudent.name}`
+                ? `🏆 Won Auctions & Handover — ${currentStudent?.name || 'Account'}`
                 : activeTab === 'my-listings'
-                ? `My Consigned Lots — ${currentStudent.name}`
+                ? `My Consigned Lots — ${currentStudent?.name || 'Account'}`
                 : activeTab === 'all'
                 ? 'Catalog Archive & Cancelled Lots'
                 : 'Live Flea Market Lots'}
@@ -487,17 +587,23 @@ export default function App() {
         ) : listings.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">
-              {activeTab === 'decisions' ? '⚡' : activeTab === 'won' ? '🏆' : '📦'}
+              {!currentStudent && (activeTab === 'decisions' || activeTab === 'won' || activeTab === 'my-listings')
+                ? '🔒'
+                : activeTab === 'decisions' ? '⚡' : activeTab === 'won' ? '🏆' : '📦'}
             </div>
             <h3 className="empty-title">
-              {activeTab === 'decisions'
+              {!currentStudent && (activeTab === 'decisions' || activeTab === 'won' || activeTab === 'my-listings')
+                ? 'Authentication Required'
+                : activeTab === 'decisions'
                 ? 'No pending decisions'
                 : activeTab === 'won'
                 ? 'No won auctions yet'
                 : 'No listings found'}
             </h3>
             <p className="empty-desc">
-              {activeTab === 'decisions'
+              {!currentStudent && (activeTab === 'decisions' || activeTab === 'won' || activeTab === 'my-listings')
+                ? 'Please sign in with your verified campus account to view this personal lot section.'
+                : activeTab === 'decisions'
                 ? `You have no closed auctions awaiting decision. When your auction closes with bids, it will appear here for review.`
                 : activeTab === 'won'
                 ? `You haven't won any auctions yet. Place leading bids on active campus lots and wait for auction closing.`
@@ -508,17 +614,34 @@ export default function App() {
                 : 'No auction items currently available in this category.'}
             </p>
             <div className="empty-actions" style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', marginTop: '1rem' }}>
-              {isFilterActive && (
+              {!currentStudent && (activeTab === 'decisions' || activeTab === 'won' || activeTab === 'my-listings') ? (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => openAuthModal('login')}
+                >
+                  Sign In to CampusBid
+                </button>
+              ) : isFilterActive ? (
                 <button type="button" className="btn-secondary" onClick={clearAllFilters}>
                   🔄 Clear All Filters
                 </button>
-              )}
-              {activeTab === 'decisions' || activeTab === 'won' ? (
+              ) : activeTab === 'decisions' || activeTab === 'won' ? (
                 <button type="button" className="btn-primary" onClick={() => setActiveTab('active')}>
                   🔥 Browse Active Auctions
                 </button>
               ) : (
-                <button type="button" className="btn-primary" onClick={() => setIsCreateOpen(true)}>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => {
+                    if (!isAuthenticated) {
+                      openAuthModal('login', 'Please sign in to create an auction listing.');
+                    } else {
+                      setIsCreateOpen(true);
+                    }
+                  }}
+                >
                   + Create Listing
                 </button>
               )}
@@ -537,6 +660,8 @@ export default function App() {
               />
             ))}
           </div>
+        )}
+          </>
         )}
       </main>
 
@@ -636,10 +761,20 @@ export default function App() {
           }
         }}
         onNotificationsUpdated={() => {
-          notificationApi.getUnreadCount(currentStudent.id).then((count) => {
-            setUnreadNotifCount(count || 0);
-          }).catch(() => {});
+          if (currentStudent?.id) {
+            notificationApi.getUnreadCount(currentStudent.id).then((count) => {
+              setUnreadNotifCount(count || 0);
+            }).catch(() => {});
+          }
         }}
+      />
+
+      {/* Authentication & User Profile Modals */}
+      <AuthModal showToast={showToast} />
+      <UserProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        showToast={showToast}
       />
 
       {/* Toast Alert */}

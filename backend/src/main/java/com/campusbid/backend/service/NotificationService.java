@@ -6,8 +6,11 @@ import com.campusbid.backend.exception.UnauthorizedException;
 import com.campusbid.backend.model.Notification;
 import com.campusbid.backend.model.NotificationType;
 import com.campusbid.backend.repository.NotificationRepository;
+import com.campusbid.backend.model.User;
+import com.campusbid.backend.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,9 +24,16 @@ public class NotificationService {
     private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
 
     private final NotificationRepository notificationRepository;
+    private final UserRepository userRepository;
+    private final EmailService emailService;
 
-    public NotificationService(NotificationRepository notificationRepository) {
+    @Autowired
+    public NotificationService(NotificationRepository notificationRepository,
+                               @Autowired(required = false) UserRepository userRepository,
+                               @Autowired(required = false) EmailService emailService) {
         this.notificationRepository = notificationRepository;
+        this.userRepository = userRepository;
+        this.emailService = emailService;
     }
 
     /**
@@ -58,7 +68,50 @@ public class NotificationService {
         log.info("Notification sent [id={}, recipientId={}, type={}, listingId={}]",
                 saved.getId(), recipientId, type, relatedListingId);
 
+        // Supplement with email notification asynchronously without risking transaction rollback
+        dispatchEmailNotification(saved);
+
         return NotificationResponse.fromEntity(saved);
+    }
+
+    /**
+     * Safe asynchronous email notification dispatch.
+     */
+    private void dispatchEmailNotification(Notification notification) {
+        if (emailService == null || userRepository == null) {
+            return;
+        }
+        try {
+            User user = userRepository.findByStudentId(notification.getRecipientId())
+                    .or(() -> userRepository.findByEmail(notification.getRecipientId()))
+                    .orElse(null);
+
+            if (user == null || !user.isEnabled() || !user.isEmailNotificationsEnabled()) {
+                log.debug("Skipping email for recipient {}: user not found or emails disabled.", notification.getRecipientId());
+                return;
+            }
+
+            String email = user.getEmail();
+            String name = user.getFullName() != null ? user.getFullName() : notification.getRecipientName();
+            String lotTitle = notification.getRelatedListingTitle() != null ? notification.getRelatedListingTitle() : "Campus Lot";
+            Long lotId = notification.getRelatedListingId();
+
+            switch (notification.getType()) {
+                case OUTBID -> emailService.sendOutbidEmail(email, name, lotTitle, lotId, null);
+                case BID_ACCEPTED -> emailService.sendBidAcceptedEmail(email, name, lotTitle, lotId, null);
+                case BID_RECEIVED -> emailService.sendBidReceivedEmail(email, name, lotTitle, lotId, null, null);
+                case AUCTION_WON -> emailService.sendAuctionWonEmail(email, name, lotTitle, lotId, null);
+                case AUCTION_CLOSED, AWAITING_APPROVAL -> emailService.sendAuctionClosedEmail(email, name, lotTitle, lotId, true, null);
+                case BID_APPROVED -> emailService.sendBidApprovedEmail(email, name, lotTitle, lotId, null);
+                case BID_REJECTED -> emailService.sendBidRejectedEmail(email, name, lotTitle, lotId);
+                case HANDOVER_CONFIRMED, SALE_COMPLETED -> emailService.sendSaleCompletedEmail(email, name, lotTitle, lotId, false);
+                case WANTED_ITEM_MATCH -> emailService.sendWantedItemMatchEmail(email, name, lotTitle, lotId, null);
+                default -> log.debug("No email dispatch configured for notification type: {}", notification.getType());
+            }
+        } catch (Exception ex) {
+            log.warn("Could not dispatch email notification for [recipient={}, type={}]: {}",
+                    notification.getRecipientId(), notification.getType(), ex.getMessage());
+        }
     }
 
     /**

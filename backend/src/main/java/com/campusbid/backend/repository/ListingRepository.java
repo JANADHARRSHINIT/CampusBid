@@ -26,6 +26,8 @@ public interface ListingRepository extends JpaRepository<Listing, Long> {
 
     List<Listing> findByStatusOrderByCreatedAtDesc(ListingStatus status);
 
+    List<Listing> findByStatus(ListingStatus status);
+
     List<Listing> findAllByOrderByCreatedAtDesc();
 
     List<Listing> findBySellerIdOrderByCreatedAtDesc(String sellerId);

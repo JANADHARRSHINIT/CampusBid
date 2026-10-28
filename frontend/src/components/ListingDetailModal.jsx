@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { CONDITION_COLORS, CATEGORY_ICONS, getStatusBadge, calculateTimeRemaining, formatFullDate } from '../constants';
 import { listingApi } from '../api/listingApi';
+import { useAuth } from '../context/AuthContext';
 
 export default function ListingDetailModal({
   isOpen,
@@ -37,6 +38,7 @@ function ListingDetailView({
   onBidPlaced,
   onAskCopilot,
 }) {
+  const { openAuthModal } = useAuth();
   const [listing, setListing] = useState(initialListing);
   const [prevInitial, setPrevInitial] = useState(initialListing);
   if (initialListing !== prevInitial) {
@@ -114,6 +116,11 @@ function ListingDetailView({
     if (e) e.preventDefault();
     setBidError('');
     setBidSuccess('');
+
+    if (!currentStudent) {
+      openAuthModal('login', 'Please sign in to place a bid.');
+      return;
+    }
 
     const numericAmount = parseFloat(bidAmount);
     if (isNaN(numericAmount) || numericAmount <= 0) {
@@ -600,6 +607,24 @@ function ListingDetailView({
                     </div>
                   )}
                 </div>
+              ) : !currentStudent ? (
+                <div className="auth-required-bid-box" style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '8px', padding: '1.25rem', textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.75rem', marginBottom: '0.4rem' }}>🔒</div>
+                  <h4 style={{ margin: '0 0 0.4rem 0', color: '#92400e', fontSize: '1.05rem', fontWeight: '800' }}>
+                    Sign In Required to Bid
+                  </h4>
+                  <p style={{ margin: '0 0 1rem 0', color: '#78350f', fontSize: '0.85rem', lineHeight: '1.4' }}>
+                    You must be signed in with a verified campus student account to participate in active bidding on this lot.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    style={{ margin: '0 auto' }}
+                    onClick={() => openAuthModal('login', 'Please sign in to place a bid.')}
+                  >
+                    Sign In to Place Bid
+                  </button>
+                </div>
               ) : isOwner ? (
                 <div className="seller-bid-prohibition">
                   <span className="prohibition-icon">🔒</span>
@@ -616,11 +641,11 @@ function ListingDetailView({
                       <span className="hub-badge">🔨 Live Campus Auction</span>
                       <h3 className="hub-title">Place Your Bid</h3>
                     </div>
-                    <div className="current-bidder-indicator" title={`Active Bidder: ${currentStudent.name} (${currentStudent.id})`}>
-                      <span className="bidder-avatar">{currentStudent.avatar || '🎓'}</span>
+                    <div className="current-bidder-indicator" title={`Active Bidder: ${currentStudent?.name} (${currentStudent?.id})`}>
+                      <span className="bidder-avatar">{currentStudent?.avatar || '🎓'}</span>
                       <div className="bidder-meta">
                         <span className="bidder-label">Bidding As</span>
-                        <span className="bidder-name">{currentStudent.name} <code>({currentStudent.id})</code></span>
+                        <span className="bidder-name">{currentStudent?.name} <code>({currentStudent?.id})</code></span>
                       </div>
                     </div>
                   </div>

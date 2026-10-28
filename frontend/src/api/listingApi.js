@@ -12,6 +12,16 @@ function getHeaders(studentId, isJson = true) {
   return headers;
 }
 
+/**
+ * Custom fetch wrapper with credentials included for secure session management.
+ */
+function apiFetch(url, options = {}) {
+  return fetch(url, {
+    credentials: 'include',
+    ...options,
+  });
+}
+
 function buildListingParams(filterOptions = {}) {
   const params = new URLSearchParams();
   const {
@@ -48,7 +58,7 @@ export const listingApi = {
 
     const params = buildListingParams(opts);
     const url = `/api/listings${params.toString() ? '?' + params.toString() : ''}`;
-    const res = await fetch(url);
+    const res = await apiFetch(url);
     const data = await res.json();
     if (!res.ok) {
       throw new Error(data.message || 'Failed to fetch active listings');
@@ -66,7 +76,7 @@ export const listingApi = {
 
     const params = buildListingParams(opts);
     const url = `/api/listings/all${params.toString() ? '?' + params.toString() : ''}`;
-    const res = await fetch(url);
+    const res = await apiFetch(url);
     const data = await res.json();
     if (!res.ok) {
       throw new Error(data.message || 'Failed to fetch listings');
@@ -78,7 +88,7 @@ export const listingApi = {
    * Fetch a single listing by its ID.
    */
   async getListingById(id) {
-    const res = await fetch(`/api/listings/${id}`);
+    const res = await apiFetch(`/api/listings/${id}`);
     const data = await res.json();
     if (!res.ok) {
       throw new Error(data.message || 'Failed to fetch listing');
@@ -90,7 +100,7 @@ export const listingApi = {
    * Create a new item listing.
    */
   async createListing(listingData, studentId) {
-    const res = await fetch('/api/listings', {
+    const res = await apiFetch('/api/listings', {
       method: 'POST',
       headers: getHeaders(studentId, true),
       body: JSON.stringify(listingData),
@@ -108,7 +118,7 @@ export const listingApi = {
    * Update an existing listing (restricted to seller).
    */
   async updateListing(id, listingData, studentId) {
-    const res = await fetch(`/api/listings/${id}`, {
+    const res = await apiFetch(`/api/listings/${id}`, {
       method: 'PUT',
       headers: getHeaders(studentId, true),
       body: JSON.stringify(listingData),
@@ -126,7 +136,7 @@ export const listingApi = {
    * Cancel an existing listing after confirmation (restricted to seller).
    */
   async cancelListing(id, studentId) {
-    const res = await fetch(`/api/listings/${id}/cancel`, {
+    const res = await apiFetch(`/api/listings/${id}/cancel`, {
       method: 'POST',
       headers: getHeaders(studentId, false),
     });
@@ -141,7 +151,7 @@ export const listingApi = {
    * Fetch listings created by a specific student.
    */
   async getMyListings(studentId) {
-    const res = await fetch('/api/listings/my-listings', {
+    const res = await apiFetch('/api/listings/my-listings', {
       headers: getHeaders(studentId, false),
     });
     const data = await res.json();
@@ -155,7 +165,7 @@ export const listingApi = {
    * Place a bid on an active listing.
    */
   async placeBid(listingId, bidData, studentId) {
-    const res = await fetch(`/api/listings/${listingId}/bids`, {
+    const res = await apiFetch(`/api/listings/${listingId}/bids`, {
       method: 'POST',
       headers: getHeaders(studentId, true),
       body: JSON.stringify(bidData),
@@ -173,7 +183,7 @@ export const listingApi = {
    * Fetch public bid history for an auction.
    */
   async getBidHistory(listingId) {
-    const res = await fetch(`/api/listings/${listingId}/bids`);
+    const res = await apiFetch(`/api/listings/${listingId}/bids`);
     const data = await res.json();
     if (!res.ok) {
       throw new Error(data.message || 'Failed to fetch bid history');
@@ -190,7 +200,7 @@ export const listingApi = {
       formData.append('files', files[i]);
     }
 
-    const res = await fetch('/api/listings/upload-images', {
+    const res = await apiFetch('/api/listings/upload-images', {
       method: 'POST',
       body: formData,
     });
@@ -205,7 +215,7 @@ export const listingApi = {
    * Fetch closed listings awaiting seller decision for active student.
    */
   async getPendingDecisions(sellerId) {
-    const res = await fetch('/api/listings/pending-decisions', {
+    const res = await apiFetch('/api/listings/pending-decisions', {
       headers: getHeaders(sellerId, false),
     });
     const data = await res.json();
@@ -219,7 +229,7 @@ export const listingApi = {
    * Fetch listings won by active student.
    */
   async getWonListings(studentId) {
-    const res = await fetch('/api/listings/won', {
+    const res = await apiFetch('/api/listings/won', {
       headers: getHeaders(studentId, false),
     });
     const data = await res.json();
@@ -233,7 +243,7 @@ export const listingApi = {
    * Submit seller decision (APPROVE or REJECT) on winning bid.
    */
   async submitDecision(listingId, decision, notes, sellerId) {
-    const res = await fetch(`/api/listings/${listingId}/decision`, {
+    const res = await apiFetch(`/api/listings/${listingId}/decision`, {
       method: 'POST',
       headers: getHeaders(sellerId, true),
       body: JSON.stringify({ decision, notes }),
@@ -249,7 +259,7 @@ export const listingApi = {
    * Convenience shortcut to approve winning bid.
    */
   async approveBid(listingId, notes, sellerId) {
-    const res = await fetch(`/api/listings/${listingId}/approve`, {
+    const res = await apiFetch(`/api/listings/${listingId}/approve`, {
       method: 'POST',
       headers: getHeaders(sellerId, true),
       body: JSON.stringify({ notes }),
@@ -265,7 +275,7 @@ export const listingApi = {
    * Convenience shortcut to reject winning bid.
    */
   async rejectBid(listingId, notes, sellerId) {
-    const res = await fetch(`/api/listings/${listingId}/reject`, {
+    const res = await apiFetch(`/api/listings/${listingId}/reject`, {
       method: 'POST',
       headers: getHeaders(sellerId, true),
       body: JSON.stringify({ notes }),
@@ -281,7 +291,7 @@ export const listingApi = {
    * Confirm campus handover by seller or winning bidder.
    */
   async confirmHandover(listingId, studentId) {
-    const res = await fetch(`/api/listings/${listingId}/confirm-handover`, {
+    const res = await apiFetch(`/api/listings/${listingId}/confirm-handover`, {
       method: 'POST',
       headers: getHeaders(studentId, false),
     });
@@ -296,7 +306,7 @@ export const listingApi = {
    * Finalize campus handover directly.
    */
   async finalizeHandover(listingId, studentId) {
-    const res = await fetch(`/api/listings/${listingId}/finalize-handover`, {
+    const res = await apiFetch(`/api/listings/${listingId}/finalize-handover`, {
       method: 'POST',
       headers: getHeaders(studentId, false),
     });
@@ -311,7 +321,7 @@ export const listingApi = {
    * Cancel approved sale or record failed pickup.
    */
   async cancelSale(listingId, reason, studentId) {
-    const res = await fetch(`/api/listings/${listingId}/cancel-sale`, {
+    const res = await apiFetch(`/api/listings/${listingId}/cancel-sale`, {
       method: 'POST',
       headers: getHeaders(studentId, true),
       body: JSON.stringify({ reason }),
@@ -327,7 +337,7 @@ export const listingApi = {
    * Manually close an active auction.
    */
   async closeAuction(listingId, sellerId) {
-    const res = await fetch(`/api/listings/${listingId}/close`, {
+    const res = await apiFetch(`/api/listings/${listingId}/close`, {
       method: 'POST',
       headers: getHeaders(sellerId, false),
     });
