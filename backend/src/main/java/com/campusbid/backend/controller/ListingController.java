@@ -148,6 +148,33 @@ public class ListingController {
     }
 
     /**
+     * Place a bid on an active auction.
+     */
+    @PostMapping("/{id}/bids")
+    public ResponseEntity<ApiResponse<ListingResponse>> placeBid(
+            @PathVariable Long id,
+            @Valid @RequestBody com.campusbid.backend.dto.PlaceBidRequest request,
+            @RequestHeader(value = "X-Student-Id", required = false) String studentId,
+            @RequestParam(value = "bidderId", required = false) String paramBidderId
+    ) {
+        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramBidderId;
+        ListingResponse updated = listingService.placeBid(id, request, effectiveStudentId);
+        return ResponseEntity.ok(ApiResponse.success(
+                String.format("Bid of $%.2f placed successfully!", request.getAmount()),
+                updated
+        ));
+    }
+
+    /**
+     * View complete public bid history for an auction.
+     */
+    @GetMapping("/{id}/bids")
+    public ResponseEntity<ApiResponse<List<com.campusbid.backend.model.BidRecord>>> getBidHistory(@PathVariable Long id) {
+        List<com.campusbid.backend.model.BidRecord> bids = listingService.getBidHistory(id);
+        return ResponseEntity.ok(ApiResponse.success("Bid history retrieved", bids));
+    }
+
+    /**
      * View listings created by a specific student.
      */
     @GetMapping("/my-listings")
@@ -162,5 +189,164 @@ public class ListingController {
         }
         List<ListingResponse> listings = listingService.getListingsBySeller(effectiveStudentId);
         return ResponseEntity.ok(ApiResponse.success("Seller listings retrieved", listings));
+    }
+
+    /**
+     * View closed listings awaiting seller decision for the authenticated student.
+     */
+    @GetMapping("/pending-decisions")
+    public ResponseEntity<ApiResponse<List<ListingResponse>>> getPendingDecisions(
+            @RequestHeader(value = "X-Student-Id", required = false) String studentId,
+            @RequestParam(value = "sellerId", required = false) String paramSellerId
+    ) {
+        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramSellerId;
+        if (effectiveStudentId == null || effectiveStudentId.isBlank()) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Student ID is required via X-Student-Id header or sellerId parameter."));
+        }
+        List<ListingResponse> pending = listingService.getPendingDecisions(effectiveStudentId);
+        return ResponseEntity.ok(ApiResponse.success("Pending decisions retrieved", pending));
+    }
+
+    /**
+     * View listings won by the authenticated student.
+     */
+    @GetMapping("/won")
+    public ResponseEntity<ApiResponse<List<ListingResponse>>> getWonListings(
+            @RequestHeader(value = "X-Student-Id", required = false) String studentId,
+            @RequestParam(value = "studentId", required = false) String paramStudentId
+    ) {
+        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramStudentId;
+        if (effectiveStudentId == null || effectiveStudentId.isBlank()) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Student ID is required via X-Student-Id header or studentId parameter."));
+        }
+        List<ListingResponse> won = listingService.getWonListings(effectiveStudentId);
+        return ResponseEntity.ok(ApiResponse.success("Won listings retrieved", won));
+    }
+
+    /**
+     * Seller decision: APPROVE or REJECT the winning bid on a closed auction.
+     */
+    @PostMapping("/{id}/decision")
+    public ResponseEntity<ApiResponse<ListingResponse>> processDecision(
+            @PathVariable Long id,
+            @Valid @RequestBody com.campusbid.backend.dto.SellerDecisionRequest request,
+            @RequestHeader(value = "X-Student-Id", required = false) String studentId,
+            @RequestParam(value = "sellerId", required = false) String paramSellerId
+    ) {
+        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramSellerId;
+        ListingResponse updated = listingService.processSellerDecision(
+                id,
+                request.getDecision(),
+                request.getNotes(),
+                effectiveStudentId
+        );
+        String msg = "APPROVE".equalsIgnoreCase(request.getDecision())
+                ? "Winning bid approved! Item reserved for buyer."
+                : "Winning bid rejected.";
+        return ResponseEntity.ok(ApiResponse.success(msg, updated));
+    }
+
+    /**
+     * Convenience shortcut to approve winning bid.
+     */
+    @PostMapping("/{id}/approve")
+    public ResponseEntity<ApiResponse<ListingResponse>> approveWinningBid(
+            @PathVariable Long id,
+            @RequestBody(required = false) com.campusbid.backend.dto.SellerDecisionRequest request,
+            @RequestHeader(value = "X-Student-Id", required = false) String studentId,
+            @RequestParam(value = "sellerId", required = false) String paramSellerId
+    ) {
+        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramSellerId;
+        String notes = request != null ? request.getNotes() : null;
+        ListingResponse updated = listingService.processSellerDecision(id, "APPROVE", notes, effectiveStudentId);
+        return ResponseEntity.ok(ApiResponse.success("Winning bid approved! Item reserved for buyer.", updated));
+    }
+
+    /**
+     * Convenience shortcut to reject winning bid.
+     */
+    @PostMapping("/{id}/reject")
+    public ResponseEntity<ApiResponse<ListingResponse>> rejectWinningBid(
+            @PathVariable Long id,
+            @RequestBody(required = false) com.campusbid.backend.dto.SellerDecisionRequest request,
+            @RequestHeader(value = "X-Student-Id", required = false) String studentId,
+            @RequestParam(value = "sellerId", required = false) String paramSellerId
+    ) {
+        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramSellerId;
+        String notes = request != null ? request.getNotes() : null;
+        ListingResponse updated = listingService.processSellerDecision(id, "REJECT", notes, effectiveStudentId);
+        return ResponseEntity.ok(ApiResponse.success("Winning bid rejected.", updated));
+    }
+
+    /**
+     * Confirm campus handover by seller or winning bidder.
+     */
+    @PostMapping("/{id}/confirm-handover")
+    public ResponseEntity<ApiResponse<ListingResponse>> confirmHandover(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-Student-Id", required = false) String studentId,
+            @RequestParam(value = "studentId", required = false) String paramStudentId
+    ) {
+        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramStudentId;
+        ListingResponse updated = listingService.confirmHandover(id, effectiveStudentId);
+        String msg = updated.getStatus() == com.campusbid.backend.model.ListingStatus.COMPLETED
+                ? "🎉 Campus handover confirmed by both parties! Sale COMPLETED."
+                : "Handover confirmation recorded. Awaiting counterpart confirmation.";
+        return ResponseEntity.ok(ApiResponse.success(msg, updated));
+    }
+
+    /**
+     * Finalize campus handover directly in one step.
+     */
+    @PostMapping("/{id}/finalize-handover")
+    public ResponseEntity<ApiResponse<ListingResponse>> finalizeHandover(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-Student-Id", required = false) String studentId,
+            @RequestParam(value = "studentId", required = false) String paramStudentId
+    ) {
+        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramStudentId;
+        ListingResponse updated = listingService.finalizeHandover(id, effectiveStudentId);
+        return ResponseEntity.ok(ApiResponse.success("🎉 Campus handover finalized! Sale COMPLETED.", updated));
+    }
+
+    /**
+     * Cancel approved sale or record failed pickup.
+     */
+    @PostMapping("/{id}/cancel-sale")
+    public ResponseEntity<ApiResponse<ListingResponse>> cancelSale(
+            @PathVariable Long id,
+            @RequestBody(required = false) com.campusbid.backend.dto.CancelSaleRequest request,
+            @RequestHeader(value = "X-Student-Id", required = false) String studentId,
+            @RequestParam(value = "studentId", required = false) String paramStudentId
+    ) {
+        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramStudentId;
+        String reason = request != null ? request.getReason() : "Sale cancelled / failed pickup";
+        ListingResponse updated = listingService.cancelSale(id, reason, effectiveStudentId);
+        return ResponseEntity.ok(ApiResponse.success("Sale cancelled. Listing updated.", updated));
+    }
+
+    /**
+     * Trigger manual close of an active auction.
+     */
+    @PostMapping("/{id}/close")
+    public ResponseEntity<ApiResponse<ListingResponse>> closeAuction(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-Student-Id", required = false) String studentId,
+            @RequestParam(value = "sellerId", required = false) String paramSellerId
+    ) {
+        String effectiveStudentId = (studentId != null && !studentId.isBlank()) ? studentId : paramSellerId;
+        ListingResponse updated = listingService.closeAuction(id, effectiveStudentId);
+        return ResponseEntity.ok(ApiResponse.success("Auction closed successfully.", updated));
+    }
+
+    /**
+     * Batch process closing for all expired active auctions.
+     */
+    @PostMapping("/close-expired")
+    public ResponseEntity<ApiResponse<Integer>> processExpiredAuctions() {
+        int count = listingService.processExpiredAuctions();
+        return ResponseEntity.ok(ApiResponse.success("Expired auctions processed: " + count, count));
     }
 }

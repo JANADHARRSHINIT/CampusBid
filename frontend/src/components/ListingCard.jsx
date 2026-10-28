@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CATEGORY_ICONS, CONDITION_COLORS, calculateTimeRemaining, formatDate } from '../constants';
+import { CATEGORY_ICONS, CONDITION_COLORS, getStatusBadge, calculateTimeRemaining, formatDate } from '../constants';
 
 export default function ListingCard({
   listing,
@@ -8,7 +8,7 @@ export default function ListingCard({
   onEdit,
   onCancel,
 }) {
-  const isOwner = listing.sellerId === currentStudent.id;
+  const isOwner = listing.sellerId === currentStudent?.id;
   const isCancelled = listing.status === 'CANCELLED';
 
   // Live countdown timer logic
@@ -23,7 +23,15 @@ export default function ListingCard({
     return () => clearInterval(timer);
   }, [listing.closingTime]);
 
-  const isClosed = listing.status === 'ENDED' || listing.expired || countdown.isExpired;
+  const isClosed = listing.status === 'ENDED' ||
+    listing.status === 'CLOSED' ||
+    listing.status === 'AWAITING_SELLER_APPROVAL' ||
+    listing.status === 'APPROVED' ||
+    listing.status === 'REJECTED' ||
+    listing.status === 'UNSOLD' ||
+    listing.status === 'COMPLETED' ||
+    listing.expired ||
+    countdown.isExpired;
 
   const photos = listing.photoUrls && listing.photoUrls.length > 0
     ? listing.photoUrls
@@ -39,8 +47,13 @@ export default function ListingCard({
   const totalBids = listing.totalBids || (listing.bidHistory ? listing.bidHistory.length : 0);
   const hasBids = totalBids > 0;
 
+  // Winner & Decision indicators
+  const isWinner = listing.winningBidderId === currentStudent?.id;
+  const needsDecision = isOwner && (listing.status === 'AWAITING_SELLER_APPROVAL' || (isClosed && hasBids && !listing.sellerDecision && listing.status !== 'CANCELLED' && listing.status !== 'COMPLETED' && listing.status !== 'APPROVED'));
+  const statusBadge = getStatusBadge(listing.status, isClosed, hasBids);
+
   return (
-    <article className={`listing-card ${isCancelled ? 'card-cancelled' : ''} ${isClosed && !isCancelled ? 'card-closed' : ''}`}>
+    <article className={`listing-card ${isCancelled ? 'card-cancelled' : ''} ${isClosed && !isCancelled ? 'card-closed' : ''} ${needsDecision ? 'card-needs-decision' : ''} ${isWinner ? 'card-winner-lot' : ''}`}>
       {/* Media Header */}
       <div className="card-media" onClick={() => onViewDetails(listing)}>
         <img
@@ -70,7 +83,9 @@ export default function ListingCard({
         {isCancelled ? (
           <span className="status-pill status-cancelled">🚫 Cancelled</span>
         ) : isClosed ? (
-          <span className="status-pill status-ended">⌛ Auction Closed</span>
+          <span className={`status-pill ${statusBadge.class}`}>
+            {statusBadge.label}
+          </span>
         ) : (
           <span className="status-pill status-active">
             ⏳ {countdown.text}
@@ -81,6 +96,18 @@ export default function ListingCard({
         <span className="category-pill">
           {categoryIcon} {listing.category}
         </span>
+
+        {/* Buyer Won / Seller Decision Floating Ribbon */}
+        {isWinner && (
+          <div className="card-winner-ribbon" title="You placed the winning bid on this lot!">
+            🏆 You Won
+          </div>
+        )}
+        {needsDecision && (
+          <div className="card-action-ribbon" title="You are the seller — review and approve/reject winning bid!">
+            ⚡ Decision Needed
+          </div>
+        )}
       </div>
 
       {/* Card Body */}
@@ -109,35 +136,53 @@ export default function ListingCard({
           {listing.description}
         </p>
 
-        {/* Pricing & Bidding Specs */}
+        {/* Sale & Pricing Specs */}
         <div className="pricing-grid">
           <div className="price-item">
             <span className="price-label">
-              {hasBids ? 'Leading Bid' : 'Starting Bid'}
+              {isClosed
+                ? (listing.winningBidAmount ? 'Winning Bid' : (hasBids ? 'Final Leading Bid' : 'Starting Bid'))
+                : (hasBids ? 'Leading Bid' : 'Starting Bid')}
             </span>
-            <span className="price-value" title={`Current Leading Bid: $${Number(leadingBid).toFixed(2)}`}>
-              ${Number(leadingBid).toFixed(2)}
+            <span className="price-value" title={`Price: $${Number(listing.winningBidAmount || leadingBid).toFixed(2)}`}>
+              ${Number(listing.winningBidAmount || leadingBid).toFixed(2)}
             </span>
             <span className="price-subnote">
-              {hasBids ? `🔥 ${totalBids} ${totalBids === 1 ? 'bid' : 'bids'}` : 'No bids yet'}
+              {hasBids
+                ? `🔥 ${totalBids} ${totalBids === 1 ? 'bid' : 'bids'}`
+                : 'No bids placed'}
             </span>
           </div>
 
           <div className="price-item price-item-secondary">
-            <div className="sub-price-row">
-              <span className="price-label">Start Price</span>
-              <span className="price-subvalue">${Number(listing.startingPrice).toFixed(2)}</span>
-            </div>
-            <div className="sub-price-row">
-              <span className="price-label">Min Increment</span>
-              <span className="price-increment">+${Number(listing.minBidIncrement).toFixed(2)}</span>
-            </div>
+            {listing.winningBidderId ? (
+              <div className="winner-summary-row">
+                <span className="price-label">Winning Bidder</span>
+                <span className="winner-name-pill" title={`Winner: ${listing.winningBidderName || listing.winningBidderId}`}>
+                  {isWinner ? '🎉 You' : `👤 ${listing.winningBidderName || listing.winningBidderId}`}
+                </span>
+                <span className="sale-status-mini-tag">
+                  {listing.status === 'COMPLETED' ? 'Handover Done' : listing.status === 'APPROVED' ? 'Reserved' : 'Pending Seller'}
+                </span>
+              </div>
+            ) : (
+              <>
+                <div className="sub-price-row">
+                  <span className="price-label">Start Price</span>
+                  <span className="price-subvalue">${Number(listing.startingPrice).toFixed(2)}</span>
+                </div>
+                <div className="sub-price-row">
+                  <span className="price-label">Min Increment</span>
+                  <span className="price-increment">+${Number(listing.minBidIncrement).toFixed(2)}</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
         {/* Closing Time Info */}
         <div className="closing-meta">
-          <span className="closing-label">Closes:</span>
+          <span className="closing-label">{isClosed ? 'Closed:' : 'Closes:'}</span>
           <span className="closing-date">
             {formatDate(listing.closingTime)}
           </span>
@@ -145,13 +190,31 @@ export default function ListingCard({
 
         {/* Action Controls */}
         <div className="card-actions">
-          <button
-            className="btn-secondary btn-sm"
-            onClick={() => onViewDetails(listing)}
-            title="View item photos, details, and bid history"
-          >
-            Details & History
-          </button>
+          {needsDecision ? (
+            <button
+              className="btn-primary btn-sm btn-decide-action"
+              onClick={() => onViewDetails(listing)}
+              title="Review winning bid and approve or reject"
+            >
+              ⚡ Review & Decide
+            </button>
+          ) : isWinner && listing.status === 'APPROVED' ? (
+            <button
+              className="btn-primary btn-sm btn-handover-action"
+              onClick={() => onViewDetails(listing)}
+              title="Coordinate pickup and confirm handover"
+            >
+              🤝 Handover Pickup
+            </button>
+          ) : (
+            <button
+              className="btn-secondary btn-sm"
+              onClick={() => onViewDetails(listing)}
+              title="View item photos, details, and bid history"
+            >
+              Details & History
+            </button>
+          )}
 
           {isOwner ? (
             <>

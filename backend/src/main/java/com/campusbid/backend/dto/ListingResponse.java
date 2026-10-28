@@ -37,6 +37,17 @@ public class ListingResponse {
     private boolean isClosed;
     private long secondsRemaining;
 
+    private String winningBidderId;
+    private String winningBidderName;
+    private BigDecimal winningBidAmount;
+    private LocalDateTime winningBidTime;
+    private String sellerDecision;
+    private LocalDateTime sellerDecisionTime;
+    private String sellerDecisionNotes;
+    private Boolean handoverConfirmedBySeller;
+    private Boolean handoverConfirmedByWinner;
+    private LocalDateTime handoverTime;
+
     public ListingResponse() {
     }
 
@@ -51,14 +62,19 @@ public class ListingResponse {
         dto.setStartingPrice(listing.getStartingPrice());
         dto.setMinBidIncrement(listing.getMinBidIncrement());
         dto.setCurrentPrice(listing.getCurrentPrice());
+        boolean hasBids = listing.getBidHistory() != null && !listing.getBidHistory().isEmpty();
         dto.setCurrentLeadingBid(listing.getCurrentPrice());
 
-        BigDecimal nextBid = listing.getCurrentPrice() != null && listing.getMinBidIncrement() != null
-                ? listing.getCurrentPrice().add(listing.getMinBidIncrement())
-                : listing.getStartingPrice();
+        BigDecimal nextBid;
+        if (!hasBids) {
+            nextBid = listing.getStartingPrice();
+        } else {
+            BigDecimal inc = listing.getMinBidIncrement() != null ? listing.getMinBidIncrement() : BigDecimal.ONE;
+            nextBid = listing.getCurrentPrice() != null ? listing.getCurrentPrice().add(inc) : listing.getStartingPrice();
+        }
         dto.setMinNextBid(nextBid);
 
-        if (listing.getBidHistory() != null) {
+        if (hasBids) {
             dto.setBidHistory(new ArrayList<>(listing.getBidHistory()));
             dto.setTotalBids(listing.getBidHistory().size());
         } else {
@@ -74,6 +90,18 @@ public class ListingResponse {
         dto.setCreatedAt(listing.getCreatedAt());
         dto.setUpdatedAt(listing.getUpdatedAt());
 
+        // Winner and sale management data
+        dto.setWinningBidderId(listing.getWinningBidderId());
+        dto.setWinningBidderName(listing.getWinningBidderName());
+        dto.setWinningBidAmount(listing.getWinningBidAmount());
+        dto.setWinningBidTime(listing.getWinningBidTime());
+        dto.setSellerDecision(listing.getSellerDecision());
+        dto.setSellerDecisionTime(listing.getSellerDecisionTime());
+        dto.setSellerDecisionNotes(listing.getSellerDecisionNotes());
+        dto.setHandoverConfirmedBySeller(listing.getHandoverConfirmedBySeller());
+        dto.setHandoverConfirmedByWinner(listing.getHandoverConfirmedByWinner());
+        dto.setHandoverTime(listing.getHandoverTime());
+
         LocalDateTime now = LocalDateTime.now();
         if (listing.getClosingTime() != null) {
             boolean expired = now.isAfter(listing.getClosingTime());
@@ -81,13 +109,26 @@ public class ListingResponse {
             if (expired) {
                 dto.setSecondsRemaining(0);
                 if (listing.getStatus() == ListingStatus.ACTIVE) {
-                    dto.setStatus(ListingStatus.ENDED);
+                    // Derive dynamic closing state if not yet persisted
+                    if (hasBids) {
+                        dto.setStatus(ListingStatus.AWAITING_SELLER_APPROVAL);
+                        // Identify top bidder if not yet set
+                        if (dto.getWinningBidderId() == null && !listing.getBidHistory().isEmpty()) {
+                            BidRecord top = listing.getBidHistory().get(0);
+                            dto.setWinningBidderId(top.getBidderId());
+                            dto.setWinningBidderName(top.getBidderName());
+                            dto.setWinningBidAmount(top.getAmount());
+                            dto.setWinningBidTime(top.getBidTime());
+                        }
+                    } else {
+                        dto.setStatus(ListingStatus.UNSOLD);
+                    }
                 }
             } else {
                 dto.setSecondsRemaining(Duration.between(now, listing.getClosingTime()).getSeconds());
             }
         }
-        dto.setClosed(dto.isExpired() || dto.getStatus() == ListingStatus.ENDED || dto.getStatus() == ListingStatus.CANCELLED);
+        dto.setClosed(dto.isExpired() || dto.getStatus() != ListingStatus.ACTIVE);
         return dto;
     }
 
@@ -273,5 +314,85 @@ public class ListingResponse {
 
     public void setSecondsRemaining(long secondsRemaining) {
         this.secondsRemaining = secondsRemaining;
+    }
+
+    public String getWinningBidderId() {
+        return winningBidderId;
+    }
+
+    public void setWinningBidderId(String winningBidderId) {
+        this.winningBidderId = winningBidderId;
+    }
+
+    public String getWinningBidderName() {
+        return winningBidderName;
+    }
+
+    public void setWinningBidderName(String winningBidderName) {
+        this.winningBidderName = winningBidderName;
+    }
+
+    public BigDecimal getWinningBidAmount() {
+        return winningBidAmount;
+    }
+
+    public void setWinningBidAmount(BigDecimal winningBidAmount) {
+        this.winningBidAmount = winningBidAmount;
+    }
+
+    public LocalDateTime getWinningBidTime() {
+        return winningBidTime;
+    }
+
+    public void setWinningBidTime(LocalDateTime winningBidTime) {
+        this.winningBidTime = winningBidTime;
+    }
+
+    public String getSellerDecision() {
+        return sellerDecision;
+    }
+
+    public void setSellerDecision(String sellerDecision) {
+        this.sellerDecision = sellerDecision;
+    }
+
+    public LocalDateTime getSellerDecisionTime() {
+        return sellerDecisionTime;
+    }
+
+    public void setSellerDecisionTime(LocalDateTime sellerDecisionTime) {
+        this.sellerDecisionTime = sellerDecisionTime;
+    }
+
+    public String getSellerDecisionNotes() {
+        return sellerDecisionNotes;
+    }
+
+    public void setSellerDecisionNotes(String sellerDecisionNotes) {
+        this.sellerDecisionNotes = sellerDecisionNotes;
+    }
+
+    public Boolean getHandoverConfirmedBySeller() {
+        return handoverConfirmedBySeller != null && handoverConfirmedBySeller;
+    }
+
+    public void setHandoverConfirmedBySeller(Boolean handoverConfirmedBySeller) {
+        this.handoverConfirmedBySeller = handoverConfirmedBySeller;
+    }
+
+    public Boolean getHandoverConfirmedByWinner() {
+        return handoverConfirmedByWinner != null && handoverConfirmedByWinner;
+    }
+
+    public void setHandoverConfirmedByWinner(Boolean handoverConfirmedByWinner) {
+        this.handoverConfirmedByWinner = handoverConfirmedByWinner;
+    }
+
+    public LocalDateTime getHandoverTime() {
+        return handoverTime;
+    }
+
+    public void setHandoverTime(LocalDateTime handoverTime) {
+        this.handoverTime = handoverTime;
     }
 }

@@ -152,6 +152,36 @@ export const listingApi = {
   },
 
   /**
+   * Place a bid on an active listing.
+   */
+  async placeBid(listingId, bidData, studentId) {
+    const res = await fetch(`/api/listings/${listingId}/bids`, {
+      method: 'POST',
+      headers: getHeaders(studentId, true),
+      body: JSON.stringify(bidData),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      const err = new Error(data.message || 'Failed to place bid');
+      err.fieldErrors = data.errors;
+      throw err;
+    }
+    return data.data;
+  },
+
+  /**
+   * Fetch public bid history for an auction.
+   */
+  async getBidHistory(listingId) {
+    const res = await fetch(`/api/listings/${listingId}/bids`);
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || 'Failed to fetch bid history');
+    }
+    return data.data || [];
+  },
+
+  /**
    * Upload multiple photos (validates type and size).
    */
   async uploadImages(files) {
@@ -169,5 +199,142 @@ export const listingApi = {
       throw new Error(data.message || 'Failed to upload images');
     }
     return data.data || [];
+  },
+
+  /**
+   * Fetch closed listings awaiting seller decision for active student.
+   */
+  async getPendingDecisions(sellerId) {
+    const res = await fetch('/api/listings/pending-decisions', {
+      headers: getHeaders(sellerId, false),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || 'Failed to fetch pending decisions');
+    }
+    return data.data || [];
+  },
+
+  /**
+   * Fetch listings won by active student.
+   */
+  async getWonListings(studentId) {
+    const res = await fetch('/api/listings/won', {
+      headers: getHeaders(studentId, false),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || 'Failed to fetch won listings');
+    }
+    return data.data || [];
+  },
+
+  /**
+   * Submit seller decision (APPROVE or REJECT) on winning bid.
+   */
+  async submitDecision(listingId, decision, notes, sellerId) {
+    const res = await fetch(`/api/listings/${listingId}/decision`, {
+      method: 'POST',
+      headers: getHeaders(sellerId, true),
+      body: JSON.stringify({ decision, notes }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || 'Failed to submit decision');
+    }
+    return data.data;
+  },
+
+  /**
+   * Convenience shortcut to approve winning bid.
+   */
+  async approveBid(listingId, notes, sellerId) {
+    const res = await fetch(`/api/listings/${listingId}/approve`, {
+      method: 'POST',
+      headers: getHeaders(sellerId, true),
+      body: JSON.stringify({ notes }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || 'Failed to approve winning bid');
+    }
+    return data.data;
+  },
+
+  /**
+   * Convenience shortcut to reject winning bid.
+   */
+  async rejectBid(listingId, notes, sellerId) {
+    const res = await fetch(`/api/listings/${listingId}/reject`, {
+      method: 'POST',
+      headers: getHeaders(sellerId, true),
+      body: JSON.stringify({ notes }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || 'Failed to reject winning bid');
+    }
+    return data.data;
+  },
+
+  /**
+   * Confirm campus handover by seller or winning bidder.
+   */
+  async confirmHandover(listingId, studentId) {
+    const res = await fetch(`/api/listings/${listingId}/confirm-handover`, {
+      method: 'POST',
+      headers: getHeaders(studentId, false),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || 'Failed to confirm handover');
+    }
+    return data.data;
+  },
+
+  /**
+   * Finalize campus handover directly.
+   */
+  async finalizeHandover(listingId, studentId) {
+    const res = await fetch(`/api/listings/${listingId}/finalize-handover`, {
+      method: 'POST',
+      headers: getHeaders(studentId, false),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || 'Failed to finalize handover');
+    }
+    return data.data;
+  },
+
+  /**
+   * Cancel approved sale or record failed pickup.
+   */
+  async cancelSale(listingId, reason, studentId) {
+    const res = await fetch(`/api/listings/${listingId}/cancel-sale`, {
+      method: 'POST',
+      headers: getHeaders(studentId, true),
+      body: JSON.stringify({ reason }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || 'Failed to cancel sale');
+    }
+    return data.data;
+  },
+
+  /**
+   * Manually close an active auction.
+   */
+  async closeAuction(listingId, sellerId) {
+    const res = await fetch(`/api/listings/${listingId}/close`, {
+      method: 'POST',
+      headers: getHeaders(sellerId, false),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || 'Failed to close auction');
+    }
+    return data.data;
   },
 };

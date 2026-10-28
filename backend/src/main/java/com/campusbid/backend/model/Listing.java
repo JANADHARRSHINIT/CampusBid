@@ -68,6 +68,36 @@ public class Listing {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "winning_bidder_id", length = 100)
+    private String winningBidderId;
+
+    @Column(name = "winning_bidder_name", length = 100)
+    private String winningBidderName;
+
+    @Column(name = "winning_bid_amount", precision = 10, scale = 2)
+    private BigDecimal winningBidAmount;
+
+    @Column(name = "winning_bid_time")
+    private LocalDateTime winningBidTime;
+
+    @Column(name = "seller_decision", length = 20)
+    private String sellerDecision;
+
+    @Column(name = "seller_decision_time")
+    private LocalDateTime sellerDecisionTime;
+
+    @Column(name = "seller_decision_notes", length = 500)
+    private String sellerDecisionNotes;
+
+    @Column(name = "handover_confirmed_by_seller")
+    private Boolean handoverConfirmedBySeller = false;
+
+    @Column(name = "handover_confirmed_by_winner")
+    private Boolean handoverConfirmedByWinner = false;
+
+    @Column(name = "handover_time")
+    private LocalDateTime handoverTime;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -224,5 +254,85 @@ public class Listing {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getWinningBidderId() {
+        return winningBidderId;
+    }
+
+    public void setWinningBidderId(String winningBidderId) {
+        this.winningBidderId = winningBidderId;
+    }
+
+    public String getWinningBidderName() {
+        return winningBidderName;
+    }
+
+    public void setWinningBidderName(String winningBidderName) {
+        this.winningBidderName = winningBidderName;
+    }
+
+    public BigDecimal getWinningBidAmount() {
+        return winningBidAmount;
+    }
+
+    public void setWinningBidAmount(BigDecimal winningBidAmount) {
+        this.winningBidAmount = winningBidAmount;
+    }
+
+    public LocalDateTime getWinningBidTime() {
+        return winningBidTime;
+    }
+
+    public void setWinningBidTime(LocalDateTime winningBidTime) {
+        this.winningBidTime = winningBidTime;
+    }
+
+    public String getSellerDecision() {
+        return sellerDecision;
+    }
+
+    public void setSellerDecision(String sellerDecision) {
+        this.sellerDecision = sellerDecision;
+    }
+
+    public LocalDateTime getSellerDecisionTime() {
+        return sellerDecisionTime;
+    }
+
+    public void setSellerDecisionTime(LocalDateTime sellerDecisionTime) {
+        this.sellerDecisionTime = sellerDecisionTime;
+    }
+
+    public String getSellerDecisionNotes() {
+        return sellerDecisionNotes;
+    }
+
+    public void setSellerDecisionNotes(String sellerDecisionNotes) {
+        this.sellerDecisionNotes = sellerDecisionNotes;
+    }
+
+    public Boolean getHandoverConfirmedBySeller() {
+        return handoverConfirmedBySeller != null && handoverConfirmedBySeller;
+    }
+
+    public void setHandoverConfirmedBySeller(Boolean handoverConfirmedBySeller) {
+        this.handoverConfirmedBySeller = handoverConfirmedBySeller;
+    }
+
+    public Boolean getHandoverConfirmedByWinner() {
+        return handoverConfirmedByWinner != null && handoverConfirmedByWinner;
+    }
+
+    public void setHandoverConfirmedByWinner(Boolean handoverConfirmedByWinner) {
+        this.handoverConfirmedByWinner = handoverConfirmedByWinner;
+    }
+
+    public LocalDateTime getHandoverTime() {
+        return handoverTime;
+    }
+
+    public void setHandoverTime(LocalDateTime handoverTime) {
+        this.handoverTime = handoverTime;
     }
 }

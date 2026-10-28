@@ -61,4 +61,28 @@ public class BidRecord {
     public void setBidTime(LocalDateTime bidTime) {
         this.bidTime = bidTime;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof BidRecord that)) return false;
+        return java.util.Objects.equals(bidderId, that.bidderId) &&
+               java.util.Objects.equals(amount, that.amount) &&
+               java.util.Objects.equals(bidTime, that.bidTime);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(bidderId, amount, bidTime);
+    }
+
+    @Override
+    public String toString() {
+        return "BidRecord{" +
+                "bidderId='" + bidderId + '\'' +
+                ", bidderName='" + bidderName + '\'' +
+                ", amount=" + amount +
+                ", bidTime=" + bidTime +
+                '}';
+    }
 }

@@ -3,8 +3,10 @@ package com.campusbid.backend.repository;
 import com.campusbid.backend.model.ItemCondition;
 import com.campusbid.backend.model.Listing;
 import com.campusbid.backend.model.ListingStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,9 +15,14 @@ import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ListingRepository extends JpaRepository<Listing, Long> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT l FROM Listing l WHERE l.id = :id")
+    Optional<Listing> findByIdForUpdate(@Param("id") Long id);
 
     List<Listing> findByStatusOrderByCreatedAtDesc(ListingStatus status);
 
@@ -52,4 +59,11 @@ public interface ListingRepository extends JpaRepository<Listing, Long> {
             @Param("endedStatus") ListingStatus endedStatus,
             @Param("now") LocalDateTime now
     );
+
+    @Query("SELECT l FROM Listing l WHERE l.status = com.campusbid.backend.model.ListingStatus.ACTIVE AND l.closingTime <= :now")
+    List<Listing> findExpiredActiveListings(@Param("now") LocalDateTime now);
+
+    List<Listing> findBySellerIdAndStatusOrderByClosingTimeDesc(String sellerId, ListingStatus status);
+
+    List<Listing> findByWinningBidderIdOrderByClosingTimeDesc(String winningBidderId);
 }

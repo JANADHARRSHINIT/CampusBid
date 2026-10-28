@@ -42,6 +42,25 @@ export const CONDITION_COLORS = {
   POOR: { label: 'As-Is / Vintage', class: 'tag-stamp stamp-rust' },
 };
 
+export const STATUS_META = {
+  ACTIVE: { label: '🔥 Active', class: 'status-active', color: '#2d6a4f' },
+  AWAITING_SELLER_APPROVAL: { label: '⌛ Awaiting Seller Decision', class: 'status-awaiting', color: '#d97706' },
+  APPROVED: { label: '✅ Sale Approved / Reserved', class: 'status-approved', color: '#16a34a' },
+  REJECTED: { label: '❌ Bid Rejected', class: 'status-rejected', color: '#dc2626' },
+  UNSOLD: { label: '🚫 Unsold (No Bids)', class: 'status-unsold', color: '#64748b' },
+  COMPLETED: { label: '🎉 Handover Complete', class: 'status-completed', color: '#059669' },
+  CANCELLED: { label: '🚫 Cancelled', class: 'status-cancelled', color: '#991b1b' },
+  CLOSED: { label: '⌛ Auction Closed', class: 'status-ended', color: '#64748b' },
+  ENDED: { label: '⌛ Auction Closed', class: 'status-ended', color: '#64748b' },
+};
+
+export function getStatusBadge(status, isExpired, hasBids = false) {
+  if (status === 'ACTIVE' && isExpired) {
+    return hasBids ? STATUS_META.AWAITING_SELLER_APPROVAL : STATUS_META.UNSOLD;
+  }
+  return STATUS_META[status] || { label: status || 'Closed', class: 'status-ended', color: '#64748b' };
+}
+
 export function calculateTimeRemaining(closingTimeStr) {
   if (!closingTimeStr) return { text: 'Auction Closed', isExpired: true };
   const closing = new Date(closingTimeStr).getTime();

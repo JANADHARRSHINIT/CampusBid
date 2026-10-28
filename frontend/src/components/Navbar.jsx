@@ -34,6 +34,26 @@ export default function Navbar({
             )}
           </button>
           <button
+            className={`nav-tab ${activeTab === 'decisions' ? 'active' : ''} ${stats?.pendingCount > 0 ? 'nav-tab-urgent' : ''}`}
+            onClick={() => onTabChange('decisions')}
+            title="Closed lots awaiting seller decision"
+          >
+            ⚡ Decisions
+            {stats?.pendingCount !== undefined && stats.pendingCount > 0 && (
+              <span className="count-pill pill-alert">{stats.pendingCount}</span>
+            )}
+          </button>
+          <button
+            className={`nav-tab ${activeTab === 'won' ? 'active' : ''}`}
+            onClick={() => onTabChange('won')}
+            title="Lots won by you"
+          >
+            🏆 Won Lots
+            {stats?.wonCount !== undefined && stats.wonCount > 0 && (
+              <span className="count-pill pill-success">{stats.wonCount}</span>
+            )}
+          </button>
+          <button
             className={`nav-tab ${activeTab === 'my-listings' ? 'active' : ''}`}
             onClick={() => onTabChange('my-listings')}
           >
@@ -46,7 +66,7 @@ export default function Navbar({
             className={`nav-tab ${activeTab === 'all' ? 'active' : ''}`}
             onClick={() => onTabChange('all')}
           >
-            🗂️ All Listings & History
+            🗂️ All Catalog
           </button>
         </nav>
 

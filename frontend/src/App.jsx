@@ -15,7 +15,11 @@ export default function App() {
   const [currentStudent, setCurrentStudent] = useState(DEMO_STUDENTS[0]);
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('active'); // 'active' | 'my-listings' | 'all'
+  const [activeTab, setActiveTab] = useState('active'); // 'active' | 'decisions' | 'won' | 'my-listings' | 'all'
+
+  // Sale tracking stats
+  const [pendingDecisions, setPendingDecisions] = useState([]);
+  const [wonListings, setWonListings] = useState([]);
 
   // Search & Filter state
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -74,14 +78,45 @@ export default function App() {
     setSortBy('newest');
   }, []);
 
+  // Sync sale management stats (pending decisions and won listings)
+  useEffect(() => {
+    let ignore = false;
+    async function loadSaleStats() {
+      try {
+        const [pending, won] = await Promise.all([
+          listingApi.getPendingDecisions(currentStudent.id),
+          listingApi.getWonListings(currentStudent.id),
+        ]);
+        if (!ignore) {
+          setPendingDecisions(pending || []);
+          setWonListings(won || []);
+        }
+      } catch {
+        // fail gracefully
+      }
+    }
+    loadSaleStats();
+    return () => {
+      ignore = true;
+    };
+  }, [currentStudent.id, refreshTrigger]);
+
   // Fetch listings based on current tab, multi-criteria filters, and keyword search
   useEffect(() => {
     let ignore = false;
 
     async function fetchData() {
       try {
+        setLoading(true);
         let data = [];
-        if (activeTab === 'my-listings') {
+
+        if (activeTab === 'decisions') {
+          // Closed lots consigned by current student awaiting their decision
+          data = await listingApi.getPendingDecisions(currentStudent.id);
+        } else if (activeTab === 'won') {
+          // Lots won by current student
+          data = await listingApi.getWonListings(currentStudent.id);
+        } else if (activeTab === 'my-listings') {
           const raw = await listingApi.getMyListings(currentStudent.id);
           // Client-side filter for seller's personal lots
           data = raw.filter((item) => {
@@ -170,13 +205,37 @@ export default function App() {
           clearAllFilters();
         }}
         onCreateClick={() => setIsCreateOpen(true)}
-        stats={{ activeCount, myCount }}
+        stats={{
+          activeCount,
+          myCount,
+          pendingCount: pendingDecisions.length,
+          wonCount: wonListings.length,
+        }}
       />
 
       {/* Main Content Area */}
       <main className="main-content">
         {/* Security & Authentication limitation explanation */}
         <SecurityBanner currentStudent={currentStudent} />
+
+        {/* Seller Pending Decision Alert Banner */}
+        {pendingDecisions.length > 0 && activeTab !== 'decisions' && (
+          <div className="seller-pending-alert-banner">
+            <div className="alert-content">
+              <span className="alert-badge">⚡ Action Required</span>
+              <span className="alert-text">
+                You have <strong>{pendingDecisions.length}</strong> closed {pendingDecisions.length === 1 ? 'lot' : 'lots'} awaiting your <strong>APPROVE</strong> or <strong>REJECT</strong> decision.
+              </span>
+            </div>
+            <button
+              type="button"
+              className="btn-review-pending"
+              onClick={() => setActiveTab('decisions')}
+            >
+              Review Pending Decisions →
+            </button>
+          </div>
+        )}
 
         {/* Hero Section */}
         <section className="hero-section">
@@ -382,14 +441,22 @@ export default function App() {
         <section className="listings-header-row">
           <div>
             <h2 className="section-title">
-              {activeTab === 'my-listings'
+              {activeTab === 'decisions'
+                ? `⚡ Seller Decision Station — ${currentStudent.name}`
+                : activeTab === 'won'
+                ? `🏆 Won Auctions & Handover — ${currentStudent.name}`
+                : activeTab === 'my-listings'
                 ? `My Consigned Lots — ${currentStudent.name}`
                 : activeTab === 'all'
                 ? 'Catalog Archive & Cancelled Lots'
                 : 'Live Flea Market Lots'}
             </h2>
             <p className="section-caption">
-              {activeTab === 'my-listings'
+              {activeTab === 'decisions'
+                ? `These lots reached their deadline with valid bids. Review each winning bid below and either APPROVE to reserve the lot or REJECT.`
+                : activeTab === 'won'
+                ? `Auctions where your bid won. Review seller approval status and coordinate physical campus exchange.`
+                : activeTab === 'my-listings'
                 ? `Showing lots consigned under Student ID: ${currentStudent.id}. You hold full permission to edit or withdraw these items.`
                 : activeTab === 'all'
                 ? 'Complete registry of campus lots, including active auctions, expired listings, and cancelled entries retained in MySQL.'
@@ -410,10 +477,22 @@ export default function App() {
           </div>
         ) : listings.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-icon">📦</div>
-            <h3 className="empty-title">No listings found</h3>
+            <div className="empty-icon">
+              {activeTab === 'decisions' ? '⚡' : activeTab === 'won' ? '🏆' : '📦'}
+            </div>
+            <h3 className="empty-title">
+              {activeTab === 'decisions'
+                ? 'No pending decisions'
+                : activeTab === 'won'
+                ? 'No won auctions yet'
+                : 'No listings found'}
+            </h3>
             <p className="empty-desc">
-              {activeTab === 'my-listings'
+              {activeTab === 'decisions'
+                ? `You have no closed lots awaiting your decision as seller (${currentStudent.id}). When an auction closes with bids, it will appear here for your approval.`
+                : activeTab === 'won'
+                ? `You haven't won any auctions yet. Place leading bids on active campus lots and wait for auction closing.`
+                : activeTab === 'my-listings'
                 ? `You haven't listed any items under ${currentStudent.name} (${currentStudent.id}) yet.`
                 : isFilterActive
                 ? 'No items match your active search keyword and filter criteria. Try clearing some filters or searching with different terms.'
@@ -425,9 +504,15 @@ export default function App() {
                   🔄 Clear All Filters
                 </button>
               )}
-              <button type="button" className="btn-primary" onClick={() => setIsCreateOpen(true)}>
-                + Create a Listing
-              </button>
+              {activeTab === 'decisions' || activeTab === 'won' ? (
+                <button type="button" className="btn-primary" onClick={() => setActiveTab('active')}>
+                  🔥 Browse Active Auctions
+                </button>
+              ) : (
+                <button type="button" className="btn-primary" onClick={() => setIsCreateOpen(true)}>
+                  + Create a Listing
+                </button>
+              )}
             </div>
           </div>
         ) : (
@@ -499,6 +584,9 @@ export default function App() {
         currentStudent={currentStudent}
         onEdit={(item) => setEditTarget(item)}
         onCancel={(item) => setCancelTarget(item)}
+        onBidPlaced={() => {
+          reloadListings();
+        }}
       />
 
       {/* Toast Alert */}
