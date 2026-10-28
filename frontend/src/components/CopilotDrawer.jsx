@@ -8,6 +8,51 @@ const DEFAULT_PROMPTS = [
   'Explain how bidding works',
   'What is the current highest bid for this item?',
 ];
+function CopilotListingItem({ item, onViewLot }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const leading = item.currentLeadingBid || item.currentPrice || item.startingPrice;
+  const rawPhoto = item.photoUrls && item.photoUrls.length > 0 && typeof item.photoUrls[0] === 'string' && item.photoUrls[0].trim().length > 0
+    ? item.photoUrls[0].trim()
+    : null;
+  const photo = !imgFailed ? rawPhoto : null;
+
+  return (
+    <div className={`copilot-listing-card ${!photo ? 'no-thumb' : ''}`}>
+      {photo && (
+        <div className="copilot-card-thumb">
+          <img src={photo} alt={item.title} onError={() => setImgFailed(true)} />
+          <span className="copilot-card-lot">LOT #{item.id}</span>
+        </div>
+      )}
+      <div className="copilot-card-info">
+        <h5 className="copilot-card-title" title={item.title}>
+          {item.title}
+        </h5>
+        <div className="copilot-card-meta">
+          {!photo && (
+            <span className="copilot-card-tag tag-lot">LOT #{item.id}</span>
+          )}
+          <span className="copilot-card-tag">{item.category}</span>
+          <span className="copilot-card-tag tag-cond">{item.condition}</span>
+        </div>
+        <div className="copilot-card-price-row">
+          <div className="copilot-price-box">
+            <span className="copilot-price-label">Current Bid</span>
+            <span className="copilot-price-val">${Number(leading).toFixed(2)}</span>
+          </div>
+          <button
+            type="button"
+            className="btn-view-lot"
+            onClick={() => onViewLot && onViewLot(item)}
+            title="Open auction details & bid"
+          >
+            👁️ View Lot
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function CopilotDrawer({
   isOpen,
@@ -370,48 +415,9 @@ I am your campus auction assistant. I can help you:
                           <span>📦 Matching Campus Auctions ({msg.matchingListings.length})</span>
                         </div>
                         <div className="copilot-matches-list">
-                          {msg.matchingListings.map((item) => {
-                            const leading = item.currentLeadingBid || item.currentPrice || item.startingPrice;
-                            const photo = item.photoUrls && item.photoUrls.length > 0
-                              ? item.photoUrls[0]
-                              : null;
-
-                            return (
-                              <div key={item.id} className="copilot-listing-card">
-                                <div className="copilot-card-thumb">
-                                  {photo ? (
-                                    <img src={photo} alt={item.title} />
-                                  ) : (
-                                    <div className="copilot-no-thumb">🏷️</div>
-                                  )}
-                                  <span className="copilot-card-lot">LOT #{item.id}</span>
-                                </div>
-                                <div className="copilot-card-info">
-                                  <h5 className="copilot-card-title" title={item.title}>
-                                    {item.title}
-                                  </h5>
-                                  <div className="copilot-card-meta">
-                                    <span className="copilot-card-tag">{item.category}</span>
-                                    <span className="copilot-card-tag tag-cond">{item.condition}</span>
-                                  </div>
-                                  <div className="copilot-card-price-row">
-                                    <div className="copilot-price-box">
-                                      <span className="copilot-price-label">Current Bid</span>
-                                      <span className="copilot-price-val">${Number(leading).toFixed(2)}</span>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      className="btn-view-lot"
-                                      onClick={() => onViewLot && onViewLot(item)}
-                                      title="Open auction details & bid"
-                                    >
-                                      👁️ View Lot
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
+                          {msg.matchingListings.map((item) => (
+                            <CopilotListingItem key={item.id} item={item} onViewLot={onViewLot} />
+                          ))}
                         </div>
                       </div>
                     )}

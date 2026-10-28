@@ -188,11 +188,6 @@ export default function CreateListingModal({
         }
       });
 
-      // Default fallback photo if none provided
-      if (finalPhotoUrls.length === 0) {
-        finalPhotoUrls.push('https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=800&q=80');
-      }
-
       const payload = {
         title: formData.title.trim(),
         category: formData.category,

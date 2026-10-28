@@ -60,9 +60,19 @@ function ListingDetailView({
     return () => clearInterval(timer);
   }, [listing.closingTime]);
 
-  const photos = listing.photoUrls && listing.photoUrls.length > 0
-    ? listing.photoUrls
-    : ['https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=800&q=80'];
+  const [failedPhotos, setFailedPhotos] = useState(new Set());
+
+  useEffect(() => {
+    setFailedPhotos(new Set());
+    setActivePhotoIdx(0);
+  }, [listing.id]);
+
+  const rawPhotos = Array.isArray(listing.photoUrls)
+    ? listing.photoUrls.filter((u) => typeof u === 'string' && u.trim().length > 0)
+    : [];
+
+  const validPhotos = rawPhotos.filter((p) => !failedPhotos.has(p));
+  const hasPhotos = validPhotos.length > 0;
 
   const isOwner = listing.sellerId === currentStudent?.id;
   const isCancelled = listing.status === 'CANCELLED';
@@ -260,36 +270,53 @@ function ListingDetailView({
           <button type="button" className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
 
-        <div className="detail-layout">
-          {/* Left Column: Gallery */}
-          <div className="detail-gallery">
-            <div className="main-photo-wrapper">
-              <img
-                src={photos[activePhotoIdx]}
-                alt={listing.title}
-                className="main-photo"
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=800&q=80';
-                }}
-              />
-            </div>
-
-            {photos.length > 1 && (
-              <div className="thumb-strip">
-                {photos.map((p, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    className={`thumb-button ${idx === activePhotoIdx ? 'active' : ''}`}
-                    onClick={() => setActivePhotoIdx(idx)}
-                  >
-                    <img src={p} alt={`Thumbnail ${idx + 1}`} />
-                  </button>
-                ))}
+        <div className={`detail-layout ${!hasPhotos ? 'detail-layout-no-gallery' : ''}`}>
+          {/* Left Column: Gallery - only rendered if valid photos exist and haven't failed */}
+          {hasPhotos && (
+            <div className="detail-gallery">
+              <div className="main-photo-wrapper">
+                <img
+                  src={validPhotos[activePhotoIdx] || validPhotos[0]}
+                  alt={listing.title}
+                  className="main-photo"
+                  onError={() => {
+                    const failingUrl = validPhotos[activePhotoIdx] || validPhotos[0];
+                    setFailedPhotos((prev) => {
+                      const next = new Set(prev);
+                      next.add(failingUrl);
+                      return next;
+                    });
+                    setActivePhotoIdx(0);
+                  }}
+                />
               </div>
-            )}
-          </div>
+
+              {validPhotos.length > 1 && (
+                <div className="thumb-strip">
+                  {validPhotos.map((p, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      className={`thumb-button ${idx === activePhotoIdx ? 'active' : ''}`}
+                      onClick={() => setActivePhotoIdx(idx)}
+                    >
+                      <img
+                        src={p}
+                        alt={`Thumbnail ${idx + 1}`}
+                        onError={() => {
+                          setFailedPhotos((prev) => {
+                            const next = new Set(prev);
+                            next.add(p);
+                            return next;
+                          });
+                        }}
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Right Column: Listing Details & Lifecycle Action Hub */}
           <div className="detail-content">

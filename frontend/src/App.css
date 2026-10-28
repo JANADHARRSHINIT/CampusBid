@@ -729,6 +729,25 @@
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 1.75rem;
   padding: 0 1.75rem 3.5rem;
+  align-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 992px) {
+  .listings-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.25rem;
+    padding: 0 1.25rem 3rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .listings-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    padding: 0 1rem 2.5rem;
+  }
 }
 
 .listing-card {
@@ -737,10 +756,12 @@
   border-radius: var(--radius-sm);
   display: flex;
   flex-direction: column;
+  height: 100%;
   box-shadow: var(--shadow-card);
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   position: relative;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .listing-card:hover {
@@ -759,10 +780,12 @@
 .card-media {
   position: relative;
   aspect-ratio: 16 / 10;
+  width: 100%;
   overflow: hidden;
   background-color: var(--bg-canvas-warm);
   border-bottom: 1px solid var(--border-subtle);
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .card-image {
@@ -856,19 +879,127 @@
   color: #ffffff;
 }
 
+/* Cards without images - Clean, naturally aligned header and typography */
+.card-no-image-header {
+  padding: 1.15rem 1.25rem 0.25rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  cursor: pointer;
+  border-bottom: 1px dashed var(--border-subtle);
+  background: linear-gradient(180deg, rgba(247, 244, 238, 0.45) 0%, rgba(255, 255, 255, 0) 100%);
+}
+
+.card-no-image-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.card-top-pills {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.category-pill-inline {
+  display: inline-flex;
+  align-items: center;
+  background: #ffffff;
+  color: var(--forest-primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.22rem 0.55rem;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-paper);
+}
+
+.status-pill-inline {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.22rem 0.6rem;
+  border-radius: var(--radius-xs);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.lot-badge-inline {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--forest-900);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-subtle);
+  letter-spacing: 0.04em;
+  box-shadow: var(--shadow-paper);
+}
+
+.card-winner-ribbon-inline {
+  display: inline-flex;
+  align-items: center;
+  background: linear-gradient(135deg, #1b5e20, #2e7d32);
+  color: #ffffff;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.22rem 0.6rem;
+  border-radius: var(--radius-xs);
+  letter-spacing: 0.03em;
+  align-self: flex-start;
+  box-shadow: 0 1px 3px rgba(27, 94, 32, 0.25);
+}
+
+.card-action-ribbon-inline {
+  display: inline-flex;
+  align-items: center;
+  background: linear-gradient(135deg, #d84315, #e65100);
+  color: #ffffff;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.22rem 0.6rem;
+  border-radius: var(--radius-xs);
+  letter-spacing: 0.03em;
+  align-self: flex-start;
+  box-shadow: 0 1px 3px rgba(230, 81, 0, 0.25);
+}
+
+.card-no-image .card-body {
+  padding-top: 1rem;
+}
+
 /* Card Body */
 .card-body {
   padding: 1.25rem;
   display: flex;
   flex-direction: column;
   flex: 1;
+  box-sizing: border-box;
+}
+
+/* Details Section - flexible to fill vertical space and push pricing/actions together */
+.card-details {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  margin-bottom: 0.75rem;
 }
 
 .card-meta-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.65rem;
+  margin-bottom: 0.5rem;
   gap: 0.5rem;
 }
 
@@ -908,16 +1039,18 @@
 /* Card Title in Editorial Serif */
 .card-title {
   font-family: var(--font-serif);
-  font-size: 1.2rem;
+  font-size: 1.18rem;
   font-weight: 700;
   color: var(--text-headline);
-  line-height: 1.3;
+  line-height: 1.35;
   margin-bottom: 0.45rem;
   cursor: pointer;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  min-height: 3.15rem; /* Consistently 2 lines visual height */
 }
 
 .card-title:hover {
@@ -927,13 +1060,20 @@
 .card-description {
   font-size: 0.85rem;
   color: var(--text-body);
-  line-height: 1.5;
-  margin-bottom: 1.15rem;
+  line-height: 1.45;
+  margin-bottom: 0.45rem;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  flex: 1;
+  min-height: 2.5rem; /* Consistently 2 lines visual height */
+}
+
+.card-no-image .card-description {
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  min-height: 3.75rem;
 }
 
 /* Bidding Ticket Block (The Orange & Warm Ivory Focal Block) */
@@ -943,9 +1083,12 @@
   background-color: var(--bg-ticket);
   border-radius: var(--radius-xs);
   padding: 0.75rem 0.85rem;
-  margin-bottom: 0.85rem;
+  margin-bottom: 0.75rem;
   border: 1px dashed var(--border-strong);
   position: relative;
+  min-height: 4.85rem; /* Consistent box height across all cards */
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .price-item {
@@ -1008,25 +1151,89 @@
   color: var(--text-headline);
 }
 
+.winner-summary-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.winner-name-pill {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--forest-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sale-status-mini-tag {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
 .card-closed {
   opacity: 0.85;
 }
 
-/* Closing Schedule */
+/* Closing Schedule & Countdown below Bid Information */
 .closing-meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-size: 0.75rem;
   color: var(--text-muted);
-  padding-bottom: 0.85rem;
-  margin-bottom: 0.85rem;
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.75rem;
   border-bottom: 1px solid var(--border-hairline);
+  min-height: 2.2rem;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  gap: 0.5rem;
+}
+
+.closing-schedule-info {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  white-space: nowrap;
 }
 
 .closing-date {
   color: var(--text-body);
   font-weight: 600;
+}
+
+.closing-countdown-info {
+  display: flex;
+  align-items: center;
+}
+
+.countdown-chip {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.18rem 0.45rem;
+  border-radius: var(--radius-xs);
+  white-space: nowrap;
+}
+
+.countdown-chip.chip-active {
+  background-color: #fff3e0;
+  color: #d84315;
+  border: 1px solid #ffcc80;
+}
+
+.countdown-chip.chip-closed {
+  background-color: #edeae4;
+  color: #556058;
+  border: 1px solid #d5cfc5;
+}
+
+.countdown-chip.chip-cancelled {
+  background-color: #fbe9e7;
+  color: #c62828;
+  border: 1px solid #ffcdd2;
 }
 
 /* Card Action Controls */
@@ -1035,6 +1242,10 @@
   align-items: center;
   gap: 0.45rem;
   flex-wrap: wrap;
+  margin-top: auto; /* Solid alignment to the bottom of the card */
+  min-height: 2.3rem;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .locked-pill {
@@ -1414,6 +1625,13 @@
   gap: 2rem;
   padding: 1.75rem;
   overflow-y: auto;
+}
+
+.detail-layout.detail-layout-no-gallery {
+  grid-template-columns: 1fr;
+  max-width: 860px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 @media (max-width: 768px) {
@@ -3422,6 +3640,18 @@
   border-color: #e65100;
   transform: translateY(-1px);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+}
+
+.copilot-listing-card.no-thumb {
+  padding: 0.65rem 0.75rem;
+}
+
+.copilot-card-tag.tag-lot {
+  font-family: var(--font-mono, monospace);
+  font-weight: 700;
+  color: var(--forest-primary);
+  background: rgba(28, 77, 53, 0.08);
+  border: 1px solid rgba(28, 77, 53, 0.15);
 }
 
 .copilot-card-thumb {

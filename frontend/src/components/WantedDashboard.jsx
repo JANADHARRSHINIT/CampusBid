@@ -2,6 +2,40 @@ import { useState, useEffect, useCallback } from 'react';
 import { wantedApi } from '../api/wantedApi';
 import { useAuth } from '../context/AuthContext';
 import WantedItemModal from './WantedItemModal';
+function MatchedLotItem({ match: m, onViewListing }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const rawPhoto = m.listingPhoto && typeof m.listingPhoto === 'string' && m.listingPhoto.trim().length > 0
+    ? m.listingPhoto.trim()
+    : null;
+  const photo = !imgFailed ? rawPhoto : null;
+
+  return (
+    <div className={`matched-lot-item ${!photo ? 'no-thumb' : ''}`}>
+      {photo && (
+        <img
+          src={photo}
+          alt={m.listingTitle}
+          className="matched-lot-thumb"
+          onError={() => setImgFailed(true)}
+        />
+      )}
+      <div className="matched-lot-info">
+        <span className="matched-lot-title">{m.listingTitle}</span>
+        <span className="matched-lot-price">
+          Starts at <strong>₹{Number(m.listingPrice).toLocaleString('en-IN')}</strong>
+        </span>
+      </div>
+      <button
+        type="button"
+        className="btn-view-match"
+        onClick={() => onViewListing(m.listingId)}
+        title="Open auction details and place bid"
+      >
+        View Lot →
+      </button>
+    </div>
+  );
+}
 
 export default function WantedDashboard({
   onViewListing,
@@ -278,27 +312,7 @@ export default function WantedDashboard({
                   {hasMatches ? (
                     <div className="matched-lots-scroll">
                       {matches.map((m) => (
-                        <div key={m.id} className="matched-lot-item">
-                          <img
-                            src={m.listingPhoto || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=200&q=80'}
-                            alt={m.listingTitle}
-                            className="matched-lot-thumb"
-                          />
-                          <div className="matched-lot-info">
-                            <span className="matched-lot-title">{m.listingTitle}</span>
-                            <span className="matched-lot-price">
-                              Starts at <strong>₹{Number(m.listingPrice).toLocaleString('en-IN')}</strong>
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            className="btn-view-match"
-                            onClick={() => onViewListing(m.listingId)}
-                            title="Open auction details and place bid"
-                          >
-                            View Lot →
-                          </button>
-                        </div>
+                        <MatchedLotItem key={m.id} match={m} onViewListing={onViewListing} />
                       ))}
                     </div>
                   ) : item.status === 'ACTIVE' ? (

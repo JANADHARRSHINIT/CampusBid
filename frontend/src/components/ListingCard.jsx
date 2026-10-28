@@ -33,11 +33,18 @@ export default function ListingCard({
     listing.expired ||
     countdown.isExpired;
 
-  const photos = listing.photoUrls && listing.photoUrls.length > 0
-    ? listing.photoUrls
-    : ['https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=800&q=80'];
+  const [imageFailed, setImageFailed] = useState(false);
 
-  const coverPhoto = photos[0];
+  useEffect(() => {
+    setImageFailed(false);
+  }, [listing.photoUrls, listing.id]);
+
+  const rawPhotos = Array.isArray(listing.photoUrls)
+    ? listing.photoUrls.filter((u) => typeof u === 'string' && u.trim().length > 0)
+    : [];
+
+  const hasImage = rawPhotos.length > 0 && !imageFailed;
+  const coverPhoto = hasImage ? rawPhotos[0] : null;
   const conditionMeta = CONDITION_COLORS[listing.condition] || { label: listing.condition, class: 'badge-blue' };
   const categoryIcon = CATEGORY_ICONS[listing.category] || '📦';
 
@@ -53,90 +60,130 @@ export default function ListingCard({
   const statusBadge = getStatusBadge(listing.status, isClosed, hasBids);
 
   return (
-    <article className={`listing-card ${isCancelled ? 'card-cancelled' : ''} ${isClosed && !isCancelled ? 'card-closed' : ''} ${needsDecision ? 'card-needs-decision' : ''} ${isWinner ? 'card-winner-lot' : ''}`}>
-      {/* Media Header */}
-      <div className="card-media" onClick={() => onViewDetails(listing)}>
-        <img
-          src={coverPhoto}
-          alt={listing.title}
-          className="card-image"
-          loading="lazy"
-          onError={(e) => {
-            e.target.onerror = null;
-            e.target.src = 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=800&q=80';
-          }}
-        />
+    <article className={`listing-card ${!hasImage ? 'card-no-image' : ''} ${isCancelled ? 'card-cancelled' : ''} ${isClosed && !isCancelled ? 'card-closed' : ''} ${needsDecision ? 'card-needs-decision' : ''} ${isWinner ? 'card-winner-lot' : ''}`}>
+      {/* Media Header - ONLY rendered when an image exists and has not failed */}
+      {hasImage && (
+        <div className="card-media" onClick={() => onViewDetails(listing)}>
+          <img
+            src={coverPhoto}
+            alt={listing.title}
+            className="card-image"
+            loading="lazy"
+            onError={() => setImageFailed(true)}
+          />
 
-        {/* Lot tag & Photo Count */}
-        <div className="card-top-tags">
-          <span className="lot-badge">
-            LOT #{String(listing.id).padStart(3, '0')}
-          </span>
-          {photos.length > 1 && (
-            <span className="photo-count-badge">
-              📷 {photos.length}
+          {/* Lot tag & Photo Count */}
+          <div className="card-top-tags">
+            <span className="lot-badge">
+              LOT #{String(listing.id).padStart(3, '0')}
+            </span>
+            {rawPhotos.length > 1 && (
+              <span className="photo-count-badge">
+                📷 {rawPhotos.length}
+              </span>
+            )}
+          </div>
+
+          {/* Status Overlay Badge */}
+          {isCancelled ? (
+            <span className="status-pill status-cancelled">🚫 Cancelled</span>
+          ) : isClosed ? (
+            <span className={`status-pill ${statusBadge.class}`}>
+              {statusBadge.label}
+            </span>
+          ) : (
+            <span className="status-pill status-active">
+              ⏳ {countdown.text}
             </span>
           )}
+
+          {/* Category Pill */}
+          <span className="category-pill">
+            {categoryIcon} {listing.category}
+          </span>
+
+          {/* Buyer Won / Seller Decision Floating Ribbon */}
+          {isWinner && (
+            <div className="card-winner-ribbon" title="You placed the winning bid on this lot!">
+              🏆 You Won
+            </div>
+          )}
+          {needsDecision && (
+            <div className="card-action-ribbon" title="You are the seller — review and approve/reject winning bid!">
+              ⚡ Decision Needed
+            </div>
+          )}
         </div>
+      )}
 
-        {/* Status Overlay Badge */}
-        {isCancelled ? (
-          <span className="status-pill status-cancelled">🚫 Cancelled</span>
-        ) : isClosed ? (
-          <span className={`status-pill ${statusBadge.class}`}>
-            {statusBadge.label}
-          </span>
-        ) : (
-          <span className="status-pill status-active">
-            ⏳ {countdown.text}
-          </span>
-        )}
-
-        {/* Category Pill */}
-        <span className="category-pill">
-          {categoryIcon} {listing.category}
-        </span>
-
-        {/* Buyer Won / Seller Decision Floating Ribbon */}
-        {isWinner && (
-          <div className="card-winner-ribbon" title="You placed the winning bid on this lot!">
-            🏆 You Won
+      {/* Clean Header for listings without an image - hides empty box completely */}
+      {!hasImage && (
+        <div className="card-no-image-header" onClick={() => onViewDetails(listing)}>
+          <div className="card-no-image-top-row">
+            <div className="card-top-pills">
+              <span className="category-pill-inline">
+                {categoryIcon} {listing.category}
+              </span>
+              {isCancelled ? (
+                <span className="status-pill-inline status-cancelled">🚫 Cancelled</span>
+              ) : isClosed ? (
+                <span className={`status-pill-inline ${statusBadge.class}`}>
+                  {statusBadge.label}
+                </span>
+              ) : (
+                <span className="status-pill-inline status-active">
+                  ⏳ {countdown.text}
+                </span>
+              )}
+            </div>
+            <span className="lot-badge-inline">
+              LOT #{String(listing.id).padStart(3, '0')}
+            </span>
           </div>
-        )}
-        {needsDecision && (
-          <div className="card-action-ribbon" title="You are the seller — review and approve/reject winning bid!">
-            ⚡ Decision Needed
-          </div>
-        )}
-      </div>
+
+          {isWinner && (
+            <div className="card-winner-ribbon-inline" title="You placed the winning bid on this lot!">
+              🏆 You Won
+            </div>
+          )}
+          {needsDecision && (
+            <div className="card-action-ribbon-inline" title="You are the seller — review and approve/reject winning bid!">
+              ⚡ Decision Needed
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Card Body */}
       <div className="card-body">
-        {/* Condition & Seller header */}
-        <div className="card-meta-row">
-          <span className={`condition-tag ${conditionMeta.class}`}>
-            {conditionMeta.label}
-          </span>
-          <span className="seller-badge" title={`Seller: ${listing.sellerName || listing.sellerId} (${listing.sellerId})`}>
-            {isOwner ? (
-              <span className="owner-tag">👤 You ({listing.sellerId})</span>
-            ) : (
-              <span>👤 {listing.sellerName || listing.sellerId}</span>
-            )}
-          </span>
+        {/* Listing Details Section (Condition, Seller, Title, Clamped Description) */}
+        <div className="card-details">
+          {/* Condition & Seller header */}
+          <div className="card-meta-row">
+            <span className={`condition-tag ${conditionMeta.class}`}>
+              {conditionMeta.label}
+            </span>
+            <span className="seller-badge" title={`Seller: ${listing.sellerName || listing.sellerId} (${listing.sellerId})`}>
+              {isOwner ? (
+                <span className="owner-tag">👤 You ({listing.sellerId})</span>
+              ) : (
+                <span>👤 {listing.sellerName || listing.sellerId}</span>
+              )}
+            </span>
+          </div>
+
+          {/* Title */}
+          <h3 className="card-title" onClick={() => onViewDetails(listing)} title={listing.title}>
+            {listing.title}
+          </h3>
+
+          {/* Description Snippet */}
+          <p className="card-description">
+            {listing.description}
+          </p>
         </div>
 
-        {/* Title */}
-        <h3 className="card-title" onClick={() => onViewDetails(listing)} title={listing.title}>
-          {listing.title}
-        </h3>
-
-        {/* Description Snippet */}
-        <p className="card-description">
-          {listing.description}
-        </p>
-
-        {/* Sale & Pricing Specs */}
+        {/* Bid Information Section */}
         <div className="pricing-grid">
           <div className="price-item">
             <span className="price-label">
@@ -180,12 +227,19 @@ export default function ListingCard({
           </div>
         </div>
 
-        {/* Closing Time Info */}
+        {/* Closing Schedule & Countdown below Bid Information */}
         <div className="closing-meta">
-          <span className="closing-label">{isClosed ? 'Closed:' : 'Closes:'}</span>
-          <span className="closing-date">
-            {formatDate(listing.closingTime)}
-          </span>
+          <div className="closing-schedule-info">
+            <span className="closing-label">{isClosed ? 'Closed:' : 'Closes:'}</span>
+            <span className="closing-date">
+              {formatDate(listing.closingTime)}
+            </span>
+          </div>
+          <div className="closing-countdown-info">
+            <span className={`countdown-chip ${isCancelled ? 'chip-cancelled' : isClosed ? 'chip-closed' : 'chip-active'}`}>
+              {isCancelled ? '🚫 Cancelled' : isClosed ? statusBadge.label : `⏳ ${countdown.text}`}
+            </span>
+          </div>
         </div>
 
         {/* Action Controls */}
