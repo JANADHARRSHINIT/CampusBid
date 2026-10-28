@@ -156,7 +156,7 @@ export default function CreateListingModal({
 
       // 1. Upload files to server if any local files were selected
       if (uploadedFiles.length > 0) {
-        showToast('Uploading images to server...', 'info');
+        showToast('Uploading images...', 'info');
         const uploadedPaths = await listingApi.uploadImages(uploadedFiles);
         finalPhotoUrls = [...uploadedPaths];
       }
@@ -207,9 +207,9 @@ export default function CreateListingModal({
         {/* Modal Header */}
         <div className="modal-header">
           <div>
-            <h2 className="modal-title">Consign an Item • Campus Flea Market</h2>
+            <h2 className="modal-title">Create Listing • Campus Marketplace</h2>
             <p className="modal-subtitle">
-              Registering Lot under seller: <strong>{currentStudent.name}</strong> ({currentStudent.id})
+              Listing as: <strong>{currentStudent.name}</strong>
             </p>
           </div>
           <button className="modal-close-btn" onClick={onClose}>✕</button>
@@ -420,10 +420,10 @@ export default function CreateListingModal({
             <button type="submit" className="btn-primary" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
-                  <span className="spinner"></span> Consigning Lot...
+                  <span className="spinner"></span> Creating Listing...
                 </>
               ) : (
-                'Consign & Publish Lot'
+                'Create Listing'
               )}
             </button>
           </div>

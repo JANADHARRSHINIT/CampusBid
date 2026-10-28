@@ -212,7 +212,7 @@ export default function ListingCard({
               onClick={() => onViewDetails(listing)}
               title="View item photos, details, and bid history"
             >
-              Details & History
+              View Auction
             </button>
           )}
 
@@ -236,7 +236,7 @@ export default function ListingCard({
               </button>
             </>
           ) : (
-            <div className="locked-pill" title="Security: You cannot edit or cancel listings owned by other students">
+            <div className="locked-pill" title="Only the seller can edit or cancel this listing">
               🔒 Seller Only
             </div>
           )}

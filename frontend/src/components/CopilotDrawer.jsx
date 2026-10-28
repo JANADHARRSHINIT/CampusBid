@@ -188,7 +188,7 @@ I am your campus auction assistant. I can help you:
       setConfirmationStatus((prev) => ({
         ...prev,
         [msgId]: {
-          error: err.message || 'Bid rejected by backend validation.',
+          error: err.message || 'Unable to submit bid. Please verify auction details.',
         },
       }));
     } finally {
@@ -557,8 +557,8 @@ I am your campus auction assistant. I can help you:
                 <span>💰 Max Budget {maxBudget ? `(₹${maxBudget})` : ''}</span>
               </button>
               {currentStudent && (
-                <span className="copilot-auth-badge" title={`Authenticated as ${currentStudent.name} (${currentStudent.id})`}>
-                  👤 {currentStudent.id}
+                <span className="copilot-auth-badge" title={`Signed in as ${currentStudent.name}`}>
+                  👤 {currentStudent.name}
                 </span>
               )}
             </div>

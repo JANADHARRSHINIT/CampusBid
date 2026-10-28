@@ -1,26 +1,29 @@
 import { useState, useEffect, useCallback } from 'react';
 import Navbar from './components/Navbar';
-import SecurityBanner from './components/SecurityBanner';
 import ListingCard from './components/ListingCard';
 import CreateListingModal from './components/CreateListingModal';
 import EditListingModal from './components/EditListingModal';
 import CancelModal from './components/CancelModal';
 import ListingDetailModal from './components/ListingDetailModal';
 import CopilotDrawer from './components/CopilotDrawer';
+import NotificationModal from './components/NotificationModal';
 import Toast from './components/Toast';
 import { listingApi } from './api/listingApi';
-import { DEMO_STUDENTS, CATEGORIES, CATEGORY_ICONS } from './constants';
+import { notificationApi } from './api/notificationApi';
+import { CAMPUS_STUDENTS, CATEGORIES, CATEGORY_ICONS } from './constants';
 import './App.css';
 
 export default function App() {
-  const [currentStudent, setCurrentStudent] = useState(DEMO_STUDENTS[0]);
+  const [currentStudent, setCurrentStudent] = useState(CAMPUS_STUDENTS[0]);
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('active'); // 'active' | 'decisions' | 'won' | 'my-listings' | 'all'
 
-  // Sale tracking stats
+  // Sale tracking stats & Notifications
   const [pendingDecisions, setPendingDecisions] = useState([]);
   const [wonListings, setWonListings] = useState([]);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
   // Search & Filter state
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -88,13 +91,15 @@ export default function App() {
     let ignore = false;
     async function loadSaleStats() {
       try {
-        const [pending, won] = await Promise.all([
+        const [pending, won, unread] = await Promise.all([
           listingApi.getPendingDecisions(currentStudent.id),
           listingApi.getWonListings(currentStudent.id),
+          notificationApi.getUnreadCount(currentStudent.id),
         ]);
         if (!ignore) {
           setPendingDecisions(pending || []);
           setWonListings(won || []);
+          setUnreadNotifCount(unread || 0);
         }
       } catch {
         // fail gracefully
@@ -202,7 +207,7 @@ export default function App() {
         currentStudent={currentStudent}
         onStudentChange={(newStudent) => {
           setCurrentStudent(newStudent);
-          showToast(`Switched active student to ${newStudent.name} (${newStudent.id})`, 'info');
+          showToast(`Active account: ${newStudent.name} (${newStudent.id})`, 'info');
         }}
         activeTab={activeTab}
         onTabChange={(tab) => {
@@ -210,6 +215,8 @@ export default function App() {
           clearAllFilters();
         }}
         onCreateClick={() => setIsCreateOpen(true)}
+        onNotificationsClick={() => setIsNotificationsOpen(true)}
+        unreadNotifCount={unreadNotifCount}
         stats={{
           activeCount,
           myCount,
@@ -220,9 +227,6 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="main-content">
-        {/* Security & Authentication limitation explanation */}
-        <SecurityBanner currentStudent={currentStudent} />
-
         {/* Seller Pending Decision Alert Banner */}
         {pendingDecisions.length > 0 && activeTab !== 'decisions' && (
           <div className="seller-pending-alert-banner">
@@ -255,7 +259,7 @@ export default function App() {
 
             <div className="hero-cta-row">
               <button className="btn-primary btn-lg" onClick={() => setIsCreateOpen(true)}>
-                <span>+ Consign / List an Item</span>
+                <span>+ Create Listing</span>
               </button>
               <button
                 className="btn-outline btn-lg"
@@ -263,7 +267,7 @@ export default function App() {
                   setActiveTab('my-listings');
                 }}
               >
-                <span>📦 My Consigned Lots ({myCount})</span>
+                <span>📦 My Listings ({myCount})</span>
               </button>
             </div>
           </div>
@@ -462,9 +466,9 @@ export default function App() {
                 : activeTab === 'won'
                 ? `Auctions where your bid won. Review seller approval status and coordinate physical campus exchange.`
                 : activeTab === 'my-listings'
-                ? `Showing lots consigned under Student ID: ${currentStudent.id}. You hold full permission to edit or withdraw these items.`
+                ? `Items you have listed on CampusBid. You can edit active details or withdraw lots before bidding closes.`
                 : activeTab === 'all'
-                ? 'Complete registry of campus lots, including active auctions, expired listings, and cancelled entries retained in MySQL.'
+                ? 'Complete directory of campus lots, including active auctions, completed sales, and past listings.'
                 : 'Browse authentic campus gear. Place your bid before each lot closes.'}
             </p>
           </div>
@@ -478,7 +482,7 @@ export default function App() {
         {loading ? (
           <div className="loading-state">
             <div className="spinner-large"></div>
-            <p>Fetching listings from CampusBid backend...</p>
+            <p>Loading campus auctions...</p>
           </div>
         ) : listings.length === 0 ? (
           <div className="empty-state">
@@ -494,11 +498,11 @@ export default function App() {
             </h3>
             <p className="empty-desc">
               {activeTab === 'decisions'
-                ? `You have no closed lots awaiting your decision as seller (${currentStudent.id}). When an auction closes with bids, it will appear here for your approval.`
+                ? `You have no closed auctions awaiting decision. When your auction closes with bids, it will appear here for review.`
                 : activeTab === 'won'
                 ? `You haven't won any auctions yet. Place leading bids on active campus lots and wait for auction closing.`
                 : activeTab === 'my-listings'
-                ? `You haven't listed any items under ${currentStudent.name} (${currentStudent.id}) yet.`
+                ? `You haven't listed any items for auction yet.`
                 : isFilterActive
                 ? 'No items match your active search keyword and filter criteria. Try clearing some filters or searching with different terms.'
                 : 'No auction items currently available in this category.'}
@@ -515,7 +519,7 @@ export default function App() {
                 </button>
               ) : (
                 <button type="button" className="btn-primary" onClick={() => setIsCreateOpen(true)}>
-                  + Create a Listing
+                  + Create Listing
                 </button>
               )}
             </div>
@@ -541,10 +545,10 @@ export default function App() {
         <div className="footer-inner">
           <div className="footer-brand">
             <span className="footer-logo">🏷️ CampusBid</span>
-            <span className="footer-copy">Student Auction & Marketplace Platform • Powered by React + Spring Boot + MySQL</span>
+            <span className="footer-copy">Campus Marketplace & Student Flea Market Auctions</span>
           </div>
           <div className="footer-note">
-            REST API: <code>http://localhost:8080/api/listings</code>
+            Verified Student Profiles • Safe In-Person Handover
           </div>
         </div>
       </footer>
@@ -613,6 +617,28 @@ export default function App() {
         onBidConfirmed={(result) => {
           reloadListings();
           showToast(`Bid placed successfully via Copilot!`, 'success');
+        }}
+      />
+
+      {/* Student Notifications Modal */}
+      <NotificationModal
+        isOpen={isNotificationsOpen}
+        onClose={() => setIsNotificationsOpen(false)}
+        currentStudent={currentStudent}
+        onViewListing={async (lotId) => {
+          try {
+            const lot = await listingApi.getListingById(lotId);
+            if (lot) {
+              setDetailTarget(lot);
+            }
+          } catch {
+            // ignore
+          }
+        }}
+        onNotificationsUpdated={() => {
+          notificationApi.getUnreadCount(currentStudent.id).then((count) => {
+            setUnreadNotifCount(count || 0);
+          }).catch(() => {});
         }}
       />
 

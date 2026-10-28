@@ -80,7 +80,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleGeneralException(Exception ex) {
         Map<String, Object> response = new HashMap<>();
         response.put("success", false);
-        response.put("message", "An unexpected error occurred: " + ex.getMessage());
+        response.put("message", "An unexpected error occurred. Please verify your request or try again.");
         response.put("timestamp", LocalDateTime.now());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }

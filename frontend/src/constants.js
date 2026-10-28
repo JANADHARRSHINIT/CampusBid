@@ -1,8 +1,10 @@
-export const DEMO_STUDENTS = [
+export const CAMPUS_STUDENTS = [
   { id: 'student-101', name: 'Alex Chen', email: 'alex.chen@campus.edu', avatar: '👨‍🎓' },
   { id: 'student-102', name: 'Maya Patel', email: 'maya.patel@campus.edu', avatar: '👩‍🎓' },
   { id: 'student-103', name: 'Rohan Sharma', email: 'rohan.sharma@campus.edu', avatar: '🧑‍💻' },
 ];
+
+export const DEMO_STUDENTS = CAMPUS_STUDENTS;
 
 export const CATEGORIES = [
   'All',

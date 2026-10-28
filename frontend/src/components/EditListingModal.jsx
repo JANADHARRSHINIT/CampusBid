@@ -195,9 +195,9 @@ function EditListingForm({
       <div className="modal-container modal-lg" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <h2 className="modal-title">Edit Consigned Lot #{listing.id}</h2>
+            <h2 className="modal-title">Edit Listing #{listing.id}</h2>
             <p className="modal-subtitle">
-              Consigned by: <strong>{listing.sellerName || listing.sellerId}</strong> ({listing.sellerId})
+              Seller: <strong>{listing.sellerName || listing.sellerId}</strong>
             </p>
           </div>
           <button className="modal-close-btn" onClick={onClose}>✕</button>
@@ -356,7 +356,7 @@ function EditListingForm({
                   <span className="spinner"></span> Saving Changes...
                 </>
               ) : (
-                'Save Lot Changes'
+                'Save Changes'
               )}
             </button>
           </div>

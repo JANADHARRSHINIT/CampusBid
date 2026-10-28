@@ -52,12 +52,12 @@ export default function CancelModal({
           <div className="cancel-warning-note">
             <span className="note-icon">ℹ️</span>
             <div>
-              <strong>Note:</strong> Cancelled listings are not deleted. In accordance with platform policy, this listing will be permanently kept in the database with status <code>CANCELLED</code> for audit and record-keeping purposes.
+              <strong>Note:</strong> Withdrawing an auction cannot be undone. Bidding will immediately conclude, and the item will be marked as cancelled.
             </div>
           </div>
 
           <div className="seller-verify-tag">
-            Seller verification: <strong>{currentStudent.name}</strong> ({currentStudent.id})
+            Listing Owner: <strong>{currentStudent.name}</strong> ({currentStudent.id})
           </div>
         </div>
 

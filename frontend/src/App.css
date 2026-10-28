@@ -3949,4 +3949,225 @@
   }
 }
 
+/* ==========================================================================
+   STUDENT NOTIFICATIONS STYLES
+   ========================================================================== */
+
+.btn-notifications-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--bg-surface-raised, #ffffff);
+  border: 1px solid var(--border-subtle, #dcd3c5);
+  color: var(--forest-primary, #1c4d35);
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--radius-sm, 8px);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.btn-notifications-nav:hover {
+  background: var(--forest-50, #eef7f2);
+  border-color: var(--forest-primary, #1c4d35);
+  transform: translateY(-1px);
+}
+
+.notif-nav-label {
+  font-size: 0.82rem;
+}
+
+.nav-notif-badge {
+  background: #e65100;
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 1px 6px;
+  line-height: 1.2;
+}
+
+/* Notification Modal */
+.notif-modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.notif-unread-count-pill {
+  background: #fff3e0;
+  color: #e65100;
+  border: 1px solid #fed7aa;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.notif-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.btn-mark-all-read {
+  background: transparent;
+  border: none;
+  color: var(--forest-primary, #1c4d35);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0.2rem 0.4rem;
+}
+
+.btn-mark-all-read:hover {
+  color: #e65100;
+}
+
+.notif-modal-body {
+  max-height: 480px;
+  overflow-y: auto;
+  padding: 0.75rem 0;
+}
+
+.notif-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--border-hairline, #ede7de);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.notif-item:hover {
+  background: #fbf8f3;
+}
+
+.notif-item.notif-unread {
+  background: #fffdfa;
+}
+
+.notif-icon-col {
+  position: relative;
+  width: 2rem;
+  height: 2rem;
+  background: #f0ebe1;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.notif-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  background: #e65100;
+  border-radius: 50%;
+  border: 1.5px solid #ffffff;
+}
+
+.notif-content-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.notif-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.notif-item-title {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-heading, #1c4d35);
+}
+
+.notif-time {
+  font-size: 0.72rem;
+  color: #8c827a;
+  white-space: nowrap;
+}
+
+.notif-message {
+  margin: 0 0 0.45rem 0;
+  font-size: 0.82rem;
+  color: var(--text-body, #333333);
+  line-height: 1.45;
+}
+
+.notif-listing-link-row {
+  margin-top: 0.25rem;
+}
+
+.btn-notif-view-lot {
+  background: #eef7f2;
+  border: 1px solid #c7ded2;
+  color: #1c4d35;
+  border-radius: 4px;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-notif-view-lot:hover {
+  background: #1c4d35;
+  color: #faf7f2;
+}
+
+.notif-empty-state {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  color: #7a7065;
+}
+
+.notif-empty-icon {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.notif-empty-state h4 {
+  margin: 0 0 0.35rem 0;
+  font-size: 1.05rem;
+  color: #1c4d35;
+}
+
+.notif-empty-state p {
+  margin: 0;
+  font-size: 0.82rem;
+  max-width: 360px;
+  margin-inline: auto;
+  line-height: 1.45;
+}
+
+.notif-loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1rem;
+  font-size: 0.85rem;
+  color: #7a7065;
+}
+
 

@@ -221,7 +221,7 @@ function ListingDetailView({
     try {
       const updated = await listingApi.cancelSale(listing.id, reason.trim(), currentStudent.id);
       setListing(updated);
-      setActionSuccess('Sale cancelled. Listing and bidding history have been preserved in MySQL.');
+      setActionSuccess('Sale cancelled. The listing and bidding records have been securely updated.');
       if (onBidPlaced) onBidPlaced(updated);
     } catch (err) {
       setActionError(err.message || 'Failed to cancel sale.');
@@ -346,7 +346,7 @@ function ListingDetailView({
                   <span className="prohibition-icon">🚫</span>
                   <div>
                     <strong>Listing Cancelled</strong>
-                    <p>This auction was withdrawn by the seller and is retained in the database for record-keeping only.</p>
+                    <p>This auction was withdrawn by the seller and is no longer open for bidding.</p>
                   </div>
                 </div>
               ) : listing.status === 'COMPLETED' ? (
@@ -605,7 +605,7 @@ function ListingDetailView({
                   <span className="prohibition-icon">🔒</span>
                   <div>
                     <strong>Seller Bidding Prohibited</strong>
-                    <p>You listed this item under Student ID <code>{listing.sellerId}</code>. In accordance with CampusBid fair auction rules, sellers cannot place bids on their own lots.</p>
+                    <p>You are the seller of this item. In accordance with fair auction rules, sellers cannot place bids on their own lots.</p>
                   </div>
                 </div>
               ) : (

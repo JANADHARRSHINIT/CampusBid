@@ -1,4 +1,4 @@
-import { DEMO_STUDENTS } from '../constants';
+import { CAMPUS_STUDENTS } from '../constants';
 
 export default function Navbar({
   currentStudent,
@@ -6,6 +6,8 @@ export default function Navbar({
   activeTab,
   onTabChange,
   onCreateClick,
+  onNotificationsClick,
+  unreadNotifCount = 0,
   stats,
 }) {
   return (
@@ -66,30 +68,44 @@ export default function Navbar({
             className={`nav-tab ${activeTab === 'all' ? 'active' : ''}`}
             onClick={() => onTabChange('all')}
           >
-            🗂️ All Catalog
+            🗂️ All Auctions
           </button>
         </nav>
 
-        {/* Right Section: Student Switcher & Create Action */}
+        {/* Right Section: Student Switcher, Notifications & Create Action */}
         <div className="header-actions">
+          {/* Notifications Button */}
+          <button
+            type="button"
+            className="btn-notifications-nav"
+            onClick={onNotificationsClick}
+            title="View your auction and bidding notifications"
+          >
+            <span>🔔</span>
+            <span className="notif-nav-label">Notifications</span>
+            {unreadNotifCount > 0 && (
+              <span className="nav-notif-badge">{unreadNotifCount}</span>
+            )}
+          </button>
+
           {/* Active Student Switcher */}
-          <div className="student-switcher" title="Switch student context to test seller ownership & authorization">
-            <span className="switcher-label">Active Student:</span>
+          <div className="student-switcher" title="Active Student Profile">
+            <span className="switcher-label">Account:</span>
             <div className="switcher-box">
               <span className="student-avatar">{currentStudent.avatar || '🎓'}</span>
               <select
                 value={currentStudent.id}
                 onChange={(e) => {
-                  const selected = DEMO_STUDENTS.find(s => s.id === e.target.value);
+                  const selected = CAMPUS_STUDENTS.find(s => s.id === e.target.value);
                   if (selected) {
                     onStudentChange(selected);
                   }
                 }}
                 className="student-select"
               >
-                {DEMO_STUDENTS.map((s) => (
+                {CAMPUS_STUDENTS.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name} ({s.id})
+                    {s.name}
                   </option>
                 ))}
               </select>
@@ -99,7 +115,7 @@ export default function Navbar({
           {/* Create Listing Button */}
           <button className="btn-primary create-btn" onClick={onCreateClick}>
             <span className="btn-icon">+</span>
-            <span>List an Item</span>
+            <span>Create Listing</span>
           </button>
         </div>
       </div>
