@@ -41,3 +41,54 @@ export const CONDITION_COLORS = {
   FAIR: { label: 'Fair / Field-Tested', class: 'tag-stamp stamp-amber' },
   POOR: { label: 'As-Is / Vintage', class: 'tag-stamp stamp-rust' },
 };
+
+export function calculateTimeRemaining(closingTimeStr) {
+  if (!closingTimeStr) return { text: 'Auction Closed', isExpired: true };
+  const closing = new Date(closingTimeStr).getTime();
+  const now = Date.now();
+  const diffMs = closing - now;
+  if (diffMs <= 0) return { text: 'Auction Closed', isExpired: true };
+
+  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((diffMs % (1000 * 60)) / (1000 * 60));
+  const seconds = Math.floor((diffMs % 1000) / 1000);
+
+  if (days > 0) return { text: `${days}d ${hours}h left`, isExpired: false };
+  if (hours > 0) return { text: `${hours}h ${minutes}m left`, isExpired: false };
+  if (minutes > 0) return { text: `${minutes}m ${seconds}s left`, isExpired: false };
+  return { text: `${seconds}s left`, isExpired: false };
+}
+
+export function formatDate(dateStr) {
+  if (!dateStr) return 'N/A';
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+export function formatFullDate(dateStr) {
+  if (!dateStr) return 'N/A';
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return dateStr;
+  }
+}

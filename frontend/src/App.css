@@ -404,7 +404,7 @@
 .search-bar-row {
   display: flex;
   gap: 1rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.85rem;
   flex-wrap: wrap;
 }
 
@@ -447,35 +447,194 @@
   right: 1rem;
   color: var(--text-muted);
   font-size: 0.85rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.2rem;
 }
 
-.condition-select-wrapper {
+.search-clear-btn:hover {
+  color: var(--text-headline);
+}
+
+/* Secondary Filter Toolbar: Condition, Price Range, Closing Soon, Sort & Clear */
+.filter-secondary-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-bottom: 1.15rem;
+  flex-wrap: wrap;
+}
+
+.condition-select-wrapper,
+.sort-select-wrapper {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   background-color: #ffffff;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-xs);
-  padding: 0.25rem 0.85rem;
+  padding: 0.35rem 0.85rem;
   box-shadow: var(--shadow-paper);
 }
 
 .filter-label {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .filter-select {
   background: transparent;
   border: none;
   color: var(--forest-primary);
-  font-size: 0.85rem;
+  font-size: 0.825rem;
   font-weight: 700;
   outline: none;
   cursor: pointer;
+}
+
+/* Price Range Filter Wrapper */
+.price-filter-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background-color: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 0.35rem 0.75rem;
+  box-shadow: var(--shadow-paper);
+}
+
+.price-inputs-group {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.price-num-input {
+  width: 68px;
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-canvas-warm);
+  border-radius: var(--radius-xs);
+  padding: 0.2rem 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-headline);
+  outline: none;
+}
+
+.price-num-input:focus {
+  border-color: var(--forest-primary);
+  background: #ffffff;
+}
+
+.price-divider {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+/* Closing Soon Toggle Button */
+.closing-soon-toggle {
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-body);
+  border-radius: var(--radius-xs);
+  padding: 0.45rem 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-paper);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.15s ease;
+}
+
+.closing-soon-toggle:hover {
+  border-color: var(--bidding-orange);
+  color: var(--bidding-orange);
+}
+
+.closing-soon-toggle.active {
+  background-color: #fff3e0;
+  border-color: var(--bidding-orange);
+  color: var(--bidding-orange-deep);
+  font-weight: 700;
+}
+
+/* Clear All Filters Button */
+.btn-clear-filters {
+  background: transparent;
+  color: #a33;
+  border: 1px dashed #d88;
+  border-radius: var(--radius-xs);
+  padding: 0.45rem 0.85rem;
+  font-size: 0.775rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.15s ease;
+  margin-left: auto;
+}
+
+.btn-clear-filters:hover {
+  background: #fff0f0;
+  color: #900;
+  border-color: #900;
+}
+
+/* Active Filters Summary Bar */
+.active-filters-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.85rem;
+  padding: 0.45rem 0.75rem;
+  background: var(--bg-canvas-warm);
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-hairline);
+  font-size: 0.75rem;
+}
+
+.active-filters-title {
+  color: var(--text-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 0.25rem;
+}
+
+.active-filter-tag {
+  background: #ffffff;
+  color: var(--forest-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 0.15rem 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+.remove-filter-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.remove-filter-btn:hover {
+  color: #a00;
 }
 
 /* Category Stall Index Chips */
@@ -816,6 +975,41 @@
   font-weight: 700;
   color: var(--forest-primary);
   line-height: 1.3;
+}
+
+.price-subnote {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--forest-primary);
+  font-weight: 600;
+  margin-top: 0.15rem;
+}
+
+.price-item-secondary {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.3rem;
+  padding-left: 0.65rem;
+  border-left: 1px dashed var(--border-hairline);
+}
+
+.sub-price-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem;
+}
+
+.price-subvalue {
+  font-family: var(--font-mono);
+  font-size: 0.825rem;
+  font-weight: 700;
+  color: var(--text-headline);
+}
+
+.card-closed {
+  opacity: 0.85;
 }
 
 /* Closing Schedule */
@@ -1292,11 +1486,38 @@
 
 .detail-price-box {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1.2fr 1fr 1fr;
   background-color: var(--bg-ticket);
   border-radius: var(--radius-xs);
-  padding: 1rem;
+  padding: 1.15rem;
   border: 1px dashed var(--bidding-orange-border);
+  gap: 1rem;
+}
+
+@media (max-width: 640px) {
+  .detail-price-box {
+    grid-template-columns: 1fr;
+  }
+}
+
+.detail-leading-bid-box {
+  border-right: 1px dashed var(--border-subtle);
+  padding-right: 0.85rem;
+}
+
+.bid-status-note {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--forest-primary);
+  font-weight: 700;
+  margin-top: 0.25rem;
+}
+
+.price-secondary-val {
+  font-family: var(--font-mono);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text-headline);
 }
 
 .price-large {
@@ -1331,6 +1552,8 @@
 
 .timing-label { color: var(--text-muted); }
 .timing-val { font-weight: 700; color: var(--forest-primary); font-family: var(--font-mono); }
+.text-closed { color: #8A2C2C !important; }
+.text-active-countdown { color: var(--bidding-orange) !important; font-weight: 800 !important; }
 
 .detail-section {
   display: flex;
@@ -1345,6 +1568,140 @@
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+/* Public Bid History Section */
+.bid-history-section {
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--border-hairline);
+  padding-top: 1rem;
+}
+
+.section-header-flex {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.bid-count-pill {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: var(--forest-50);
+  color: var(--forest-primary);
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--forest-100);
+}
+
+.bid-history-table-wrapper {
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  overflow-x: auto;
+  box-shadow: var(--shadow-paper);
+}
+
+.bid-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.825rem;
+  text-align: left;
+}
+
+.bid-history-table th {
+  background: var(--bg-canvas-warm);
+  color: var(--text-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.bid-history-table td {
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--border-hairline);
+  color: var(--text-body);
+}
+
+.bid-history-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.leading-bid-row {
+  background-color: #fff9f0;
+}
+
+.leading-rank-tag {
+  background: var(--bidding-orange);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-xs);
+}
+
+.rank-tag {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.bidder-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+.bid-amount-cell {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  color: var(--forest-primary);
+  font-size: 0.95rem;
+}
+
+.leading-bid-row .bid-amount-cell {
+  color: var(--bidding-orange);
+  font-size: 1.05rem;
+}
+
+.bid-time-cell {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.no-bids-message {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  background: var(--bg-canvas-warm);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 1rem 1.25rem;
+}
+
+.no-bids-icon {
+  font-size: 1.5rem;
+}
+
+.no-bids-title {
+  font-weight: 700;
+  font-size: 0.875rem;
+  color: var(--forest-900);
+  margin-bottom: 0.15rem;
+}
+
+.no-bids-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0;
 }
 
 .detail-description-text {

@@ -41,6 +41,11 @@ public class Listing {
     @Column(name = "current_price", nullable = false, precision = 10, scale = 2)
     private BigDecimal currentPrice;
 
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "listing_bids", joinColumns = @JoinColumn(name = "listing_id"))
+    @OrderBy("amount DESC")
+    private List<BidRecord> bidHistory = new ArrayList<>();
+
     @Column(name = "closing_time", nullable = false)
     private LocalDateTime closingTime;
 
@@ -155,6 +160,14 @@ public class Listing {
 
     public void setCurrentPrice(BigDecimal currentPrice) {
         this.currentPrice = currentPrice;
+    }
+
+    public List<BidRecord> getBidHistory() {
+        return bidHistory;
+    }
+
+    public void setBidHistory(List<BidRecord> bidHistory) {
+        this.bidHistory = bidHistory;
     }
 
     public LocalDateTime getClosingTime() {

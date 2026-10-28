@@ -12,15 +12,41 @@ function getHeaders(studentId, isJson = true) {
   return headers;
 }
 
+function buildListingParams(filterOptions = {}) {
+  const params = new URLSearchParams();
+  const {
+    status,
+    category,
+    condition,
+    minPrice,
+    maxPrice,
+    closingSoon,
+    keyword,
+    sortBy,
+  } = filterOptions;
+
+  if (status && status !== 'ALL') params.append('status', status);
+  if (category && category !== 'All') params.append('category', category);
+  if (condition && condition !== 'ALL') params.append('condition', condition);
+  if (minPrice !== undefined && minPrice !== null && minPrice !== '') params.append('minPrice', minPrice);
+  if (maxPrice !== undefined && maxPrice !== null && maxPrice !== '') params.append('maxPrice', maxPrice);
+  if (closingSoon) params.append('closingSoon', 'true');
+  if (keyword && typeof keyword === 'string' && keyword.trim()) params.append('keyword', keyword.trim());
+  if (sortBy) params.append('sortBy', sortBy);
+
+  return params;
+}
+
 export const listingApi = {
   /**
-   * Fetch active listings with optional category and search keyword.
+   * Fetch active listings with multi-criteria filters and keyword search.
    */
-  async getActiveListings(category = '', keyword = '') {
-    const params = new URLSearchParams();
-    if (category && category !== 'All') params.append('category', category);
-    if (keyword && keyword.trim()) params.append('keyword', keyword.trim());
+  async getActiveListings(filtersOrCategory = {}, maybeKeyword = '') {
+    const opts = typeof filtersOrCategory === 'object' && filtersOrCategory !== null
+      ? filtersOrCategory
+      : { category: filtersOrCategory, keyword: maybeKeyword };
 
+    const params = buildListingParams(opts);
     const url = `/api/listings${params.toString() ? '?' + params.toString() : ''}`;
     const res = await fetch(url);
     const data = await res.json();
@@ -31,14 +57,14 @@ export const listingApi = {
   },
 
   /**
-   * Fetch all listings including CANCELLED and ENDED.
+   * Fetch all listings including CANCELLED and ENDED with multi-criteria filters.
    */
-  async getAllListings(status = '', category = '', keyword = '') {
-    const params = new URLSearchParams();
-    if (status && status !== 'ALL') params.append('status', status);
-    if (category && category !== 'All') params.append('category', category);
-    if (keyword && keyword.trim()) params.append('keyword', keyword.trim());
+  async getAllListings(filtersOrStatus = {}, maybeCategory = '', maybeKeyword = '') {
+    const opts = typeof filtersOrStatus === 'object' && filtersOrStatus !== null
+      ? filtersOrStatus
+      : { status: filtersOrStatus, category: maybeCategory, keyword: maybeKeyword };
 
+    const params = buildListingParams(opts);
     const url = `/api/listings/all${params.toString() ? '?' + params.toString() : ''}`;
     const res = await fetch(url);
     const data = await res.json();

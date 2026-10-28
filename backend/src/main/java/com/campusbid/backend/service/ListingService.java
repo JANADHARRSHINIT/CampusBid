@@ -5,12 +5,15 @@ import com.campusbid.backend.dto.ListingResponse;
 import com.campusbid.backend.dto.UpdateListingRequest;
 import com.campusbid.backend.exception.ResourceNotFoundException;
 import com.campusbid.backend.exception.UnauthorizedException;
+import com.campusbid.backend.model.ItemCondition;
 import com.campusbid.backend.model.Listing;
 import com.campusbid.backend.model.ListingStatus;
 import com.campusbid.backend.repository.ListingRepository;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -59,42 +62,107 @@ public class ListingService {
         return ListingResponse.fromEntity(saved);
     }
 
-    @Transactional(readOnly = true)
-    public List<ListingResponse> getActiveListings(String category, String keyword) {
-        List<Listing> listings;
-        if ((category != null && !category.isBlank()) || (keyword != null && !keyword.isBlank())) {
-            String cat = (category != null && !category.isBlank()) ? category.trim() : null;
-            String kw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
-            listings = listingRepository.searchListings(ListingStatus.ACTIVE, cat, kw);
-        } else {
-            listings = listingRepository.findByStatusOrderByCreatedAtDesc(ListingStatus.ACTIVE);
-        }
+    /**
+     * Search and filter active auctions with backend closing time enforcement.
+     */
+    public List<ListingResponse> getActiveListings(
+            String category,
+            ItemCondition condition,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            Boolean closingSoon,
+            String keyword,
+            String sortBy
+    ) {
+        LocalDateTime now = LocalDateTime.now();
+        // Backend enforcement: automatically update any expired active auctions to ENDED
+        listingRepository.closeExpiredListings(ListingStatus.ACTIVE, ListingStatus.ENDED, now);
+
+        Sort sort = determineSort(sortBy);
+        LocalDateTime closingSoonThreshold = (closingSoon != null && closingSoon)
+                ? now.plusHours(24)
+                : null;
+
+        String effectiveCategory = (category != null && !category.isBlank() && !category.equalsIgnoreCase("All"))
+                ? category.trim()
+                : null;
+        String effectiveKeyword = (keyword != null && !keyword.isBlank())
+                ? keyword.trim()
+                : null;
+
+        List<Listing> listings = listingRepository.searchWithFilters(
+                ListingStatus.ACTIVE,
+                effectiveCategory,
+                condition,
+                minPrice,
+                maxPrice,
+                closingSoonThreshold,
+                now,
+                effectiveKeyword,
+                sort
+        );
 
         return listings.stream()
                 .map(ListingResponse::fromEntity)
                 .collect(Collectors.toList());
     }
 
-    @Transactional(readOnly = true)
-    public List<ListingResponse> getAllListings(ListingStatus status, String category, String keyword) {
-        List<Listing> listings;
-        if (status != null || (category != null && !category.isBlank()) || (keyword != null && !keyword.isBlank())) {
-            String cat = (category != null && !category.isBlank()) ? category.trim() : null;
-            String kw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
-            listings = listingRepository.searchListings(status, cat, kw);
-        } else {
-            listings = listingRepository.findAllByOrderByCreatedAtDesc();
-        }
+    /**
+     * Search and filter all listings (including ENDED and CANCELLED).
+     */
+    public List<ListingResponse> getAllListings(
+            ListingStatus status,
+            String category,
+            ItemCondition condition,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            Boolean closingSoon,
+            String keyword,
+            String sortBy
+    ) {
+        LocalDateTime now = LocalDateTime.now();
+        // Backend enforcement
+        listingRepository.closeExpiredListings(ListingStatus.ACTIVE, ListingStatus.ENDED, now);
+
+        Sort sort = determineSort(sortBy);
+        LocalDateTime closingSoonThreshold = (closingSoon != null && closingSoon)
+                ? now.plusHours(24)
+                : null;
+
+        String effectiveCategory = (category != null && !category.isBlank() && !category.equalsIgnoreCase("All"))
+                ? category.trim()
+                : null;
+        String effectiveKeyword = (keyword != null && !keyword.isBlank())
+                ? keyword.trim()
+                : null;
+
+        List<Listing> listings = listingRepository.searchWithFilters(
+                status,
+                effectiveCategory,
+                condition,
+                minPrice,
+                maxPrice,
+                closingSoonThreshold,
+                now,
+                effectiveKeyword,
+                sort
+        );
 
         return listings.stream()
                 .map(ListingResponse::fromEntity)
                 .collect(Collectors.toList());
     }
 
-    @Transactional(readOnly = true)
     public ListingResponse getListingById(Long id) {
         Listing listing = listingRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Listing not found with ID: " + id));
+
+        // Enforce closing time check on individual lookup
+        if (listing.getStatus() == ListingStatus.ACTIVE && LocalDateTime.now().isAfter(listing.getClosingTime())) {
+            listing.setStatus(ListingStatus.ENDED);
+            listing = listingRepository.save(listing);
+        }
+
         return ListingResponse.fromEntity(listing);
     }
 
@@ -108,6 +176,13 @@ public class ListingService {
         // Cannot edit if already cancelled or ended
         if (listing.getStatus() == ListingStatus.CANCELLED) {
             throw new IllegalArgumentException("Cancelled listings cannot be edited.");
+        }
+
+        // Backend enforcement: cannot edit an auction that has already closed
+        if (listing.getStatus() == ListingStatus.ENDED || LocalDateTime.now().isAfter(listing.getClosingTime())) {
+            listing.setStatus(ListingStatus.ENDED);
+            listingRepository.save(listing);
+            throw new IllegalArgumentException("Cannot edit an auction that has already closed.");
         }
 
         if (request.getClosingTime().isBefore(LocalDateTime.now())) {
@@ -144,6 +219,13 @@ public class ListingService {
             throw new IllegalArgumentException("Listing is already cancelled.");
         }
 
+        // Backend enforcement: cannot cancel an auction that has already closed
+        if (listing.getStatus() == ListingStatus.ENDED || LocalDateTime.now().isAfter(listing.getClosingTime())) {
+            listing.setStatus(ListingStatus.ENDED);
+            listingRepository.save(listing);
+            throw new IllegalArgumentException("Cannot cancel an auction that has already closed.");
+        }
+
         // Cancel listing without deleting from database (soft cancellation)
         listing.setStatus(ListingStatus.CANCELLED);
         Listing updated = listingRepository.save(listing);
@@ -164,5 +246,16 @@ public class ListingService {
         if (!listing.getSellerId().trim().equalsIgnoreCase(requesterStudentId.trim())) {
             throw new UnauthorizedException("Access Denied: You cannot modify or cancel another student's listing. This item was listed by: " + listing.getSellerId());
         }
+    }
+
+    private Sort determineSort(String sortBy) {
+        if ("closingSoon".equalsIgnoreCase(sortBy)) {
+            return Sort.by(Sort.Direction.ASC, "closingTime");
+        } else if ("priceLow".equalsIgnoreCase(sortBy)) {
+            return Sort.by(Sort.Direction.ASC, "currentPrice");
+        } else if ("priceHigh".equalsIgnoreCase(sortBy)) {
+            return Sort.by(Sort.Direction.DESC, "currentPrice");
+        }
+        return Sort.by(Sort.Direction.DESC, "createdAt");
     }
 }

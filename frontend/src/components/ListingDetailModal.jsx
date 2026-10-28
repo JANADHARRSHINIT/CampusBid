@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { CONDITION_COLORS, CATEGORY_ICONS } from '../constants';
+import { useState, useEffect } from 'react';
+import { CONDITION_COLORS, CATEGORY_ICONS, calculateTimeRemaining, formatFullDate } from '../constants';
 
 export default function ListingDetailModal({
   isOpen,
@@ -32,14 +32,35 @@ function ListingDetailView({
 }) {
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
 
+  // Live countdown timer in detail view
+  const [countdown, setCountdown] = useState(() => calculateTimeRemaining(listing.closingTime));
+
+  useEffect(() => {
+    const updateCountdown = () => {
+      setCountdown(calculateTimeRemaining(listing.closingTime));
+    };
+    updateCountdown();
+    const timer = setInterval(updateCountdown, 1000);
+    return () => clearInterval(timer);
+  }, [listing.closingTime]);
+
   const photos = listing.photoUrls && listing.photoUrls.length > 0
     ? listing.photoUrls
     : ['https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=800&q=80'];
 
   const isOwner = listing.sellerId === currentStudent.id;
   const isCancelled = listing.status === 'CANCELLED';
-  const isEnded = listing.status === 'ENDED' || listing.expired;
+  const isClosed = listing.status === 'ENDED' || listing.expired || countdown.isExpired;
   const conditionMeta = CONDITION_COLORS[listing.condition] || { label: listing.condition, class: 'badge-blue' };
+
+  const leadingBid = listing.currentLeadingBid != null
+    ? listing.currentLeadingBid
+    : (listing.currentPrice != null ? listing.currentPrice : listing.startingPrice);
+
+  const bids = listing.bidHistory && listing.bidHistory.length > 0
+    ? [...listing.bidHistory].sort((a, b) => Number(b.amount) - Number(a.amount))
+    : [];
+  const hasBids = bids.length > 0;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -53,9 +74,13 @@ function ListingDetailView({
             <span className={`condition-tag ${conditionMeta.class}`}>
               {conditionMeta.label}
             </span>
-            {isCancelled && <span className="status-pill status-cancelled">🚫 Cancelled</span>}
-            {isEnded && !isCancelled && <span className="status-pill status-ended">⌛ Ended</span>}
-            {!isCancelled && !isEnded && <span className="status-pill status-active">⏳ Live Auction</span>}
+            {isCancelled ? (
+              <span className="status-pill status-cancelled">🚫 Cancelled</span>
+            ) : isClosed ? (
+              <span className="status-pill status-ended">⌛ Auction Closed</span>
+            ) : (
+              <span className="status-pill status-active">⏳ {countdown.text}</span>
+            )}
           </div>
           <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
@@ -95,27 +120,49 @@ function ListingDetailView({
           <div className="detail-content">
             <h1 className="detail-title">{listing.title}</h1>
 
+            {/* Auction Pricing & Leading Bid Box */}
             <div className="detail-price-box">
+              <div className="price-item detail-leading-bid-box">
+                <span className="price-label">
+                  {hasBids ? 'Current Leading Bid' : 'Starting Price'}
+                </span>
+                <span className="price-large">
+                  ${Number(leadingBid).toFixed(2)}
+                </span>
+                {hasBids ? (
+                  <span className="bid-status-note">🔥 Leading bid ({bids.length} {bids.length === 1 ? 'bid' : 'bids'})</span>
+                ) : (
+                  <span className="bid-status-note">No bids placed yet</span>
+                )}
+              </div>
+
               <div className="price-item">
                 <span className="price-label">Starting Price</span>
-                <span className="price-large">${Number(listing.startingPrice).toFixed(2)}</span>
+                <span className="price-secondary-val">${Number(listing.startingPrice).toFixed(2)}</span>
               </div>
+
               <div className="price-item">
                 <span className="price-label">Min Bid Increment</span>
                 <span className="price-increment-large">+${Number(listing.minBidIncrement).toFixed(2)}</span>
               </div>
             </div>
 
-            {/* Auction Timing */}
+            {/* Auction Timing & Deadline */}
             <div className="detail-timing-box">
               <div className="timing-row">
                 <span className="timing-label">Closing Date & Time:</span>
                 <span className="timing-val">{formatFullDate(listing.closingTime)}</span>
               </div>
               <div className="timing-row">
+                <span className="timing-label">Countdown / Deadline:</span>
+                <span className={`timing-val ${isClosed ? 'text-closed' : 'text-active-countdown'}`}>
+                  {isCancelled ? 'Cancelled' : isClosed ? 'Auction Closed' : `⏳ ${countdown.text}`}
+                </span>
+              </div>
+              <div className="timing-row">
                 <span className="timing-label">Status:</span>
                 <span className="timing-val">
-                  {isCancelled ? 'Cancelled (Kept in Database)' : isEnded ? 'Auction Ended' : 'Open for Bidding'}
+                  {isCancelled ? 'Cancelled (Retained in Database)' : isClosed ? 'Auction Closed' : 'Open for Bidding'}
                 </span>
               </div>
             </div>
@@ -124,6 +171,62 @@ function ListingDetailView({
             <div className="detail-section">
               <h3 className="section-heading">Description</h3>
               <p className="detail-description-text">{listing.description}</p>
+            </div>
+
+            {/* Public Bid History Section */}
+            <div className="detail-section bid-history-section">
+              <div className="section-header-flex">
+                <h3 className="section-heading">📜 Public Bid History</h3>
+                <span className="bid-count-pill">{bids.length} {bids.length === 1 ? 'Bid' : 'Bids'}</span>
+              </div>
+
+              {bids.length > 0 ? (
+                <div className="bid-history-table-wrapper">
+                  <table className="bid-history-table">
+                    <thead>
+                      <tr>
+                        <th>Rank</th>
+                        <th>Bidder</th>
+                        <th>Bid Amount</th>
+                        <th>Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bids.map((bid, idx) => (
+                        <tr key={idx} className={idx === 0 ? 'leading-bid-row' : ''}>
+                          <td>
+                            {idx === 0 ? (
+                              <span className="leading-rank-tag">🏆 Leading</span>
+                            ) : (
+                              <span className="rank-tag">#{idx + 1}</span>
+                            )}
+                          </td>
+                          <td className="bidder-cell">
+                            <span className="bidder-icon">👤</span>
+                            <span className="bidder-name">{bid.bidderName || bid.bidderId}</span>
+                          </td>
+                          <td className="bid-amount-cell">
+                            ${Number(bid.amount).toFixed(2)}
+                          </td>
+                          <td className="bid-time-cell">
+                            {formatFullDate(bid.bidTime)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="no-bids-message">
+                  <span className="no-bids-icon">🏷️</span>
+                  <div>
+                    <p className="no-bids-title">No bids placed yet</p>
+                    <p className="no-bids-desc">
+                      Bidding starts at <strong>${Number(listing.startingPrice).toFixed(2)}</strong> with minimum bid increments of <strong>+${Number(listing.minBidIncrement).toFixed(2)}</strong>.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Seller Info Card */}
@@ -149,8 +252,8 @@ function ListingDetailView({
                       onClose();
                       onEdit(listing);
                     }}
-                    disabled={isCancelled}
-                    title={isCancelled ? 'Cancelled listings cannot be edited' : 'Edit listing'}
+                    disabled={isCancelled || isClosed}
+                    title={isCancelled ? 'Cancelled listings cannot be edited' : isClosed ? 'Closed auctions cannot be edited' : 'Edit listing'}
                   >
                     ✏️ Edit Listing
                   </button>
@@ -160,10 +263,10 @@ function ListingDetailView({
                       onClose();
                       onCancel(listing);
                     }}
-                    disabled={isCancelled}
-                    title={isCancelled ? 'Already cancelled' : 'Cancel listing'}
+                    disabled={isCancelled || isClosed}
+                    title={isCancelled ? 'Already cancelled' : isClosed ? 'Closed auctions cannot be cancelled' : 'Cancel listing'}
                   >
-                    {isCancelled ? 'Already Cancelled' : '🛑 Cancel Listing'}
+                    {isCancelled ? 'Already Cancelled' : isClosed ? 'Auction Closed' : '🛑 Cancel Listing'}
                   </button>
                 </>
               ) : (
@@ -177,21 +280,4 @@ function ListingDetailView({
       </div>
     </div>
   );
-}
-
-function formatFullDate(dateStr) {
-  if (!dateStr) return 'N/A';
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleString(undefined, {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return dateStr;
-  }
 }

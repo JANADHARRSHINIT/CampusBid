@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CATEGORY_ICONS, CONDITION_COLORS } from '../constants';
+import { CATEGORY_ICONS, CONDITION_COLORS, calculateTimeRemaining, formatDate } from '../constants';
 
 export default function ListingCard({
   listing,
@@ -10,17 +10,20 @@ export default function ListingCard({
 }) {
   const isOwner = listing.sellerId === currentStudent.id;
   const isCancelled = listing.status === 'CANCELLED';
-  const isEnded = listing.status === 'ENDED' || listing.expired;
 
-  // Countdown timer logic
-  const [timeLeft, setTimeLeft] = useState(() => formatTimeRemaining(listing.closingTime));
+  // Live countdown timer logic
+  const [countdown, setCountdown] = useState(() => calculateTimeRemaining(listing.closingTime));
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft(formatTimeRemaining(listing.closingTime));
-    }, 1000);
+    const updateCountdown = () => {
+      setCountdown(calculateTimeRemaining(listing.closingTime));
+    };
+    updateCountdown();
+    const timer = setInterval(updateCountdown, 1000);
     return () => clearInterval(timer);
   }, [listing.closingTime]);
+
+  const isClosed = listing.status === 'ENDED' || listing.expired || countdown.isExpired;
 
   const photos = listing.photoUrls && listing.photoUrls.length > 0
     ? listing.photoUrls
@@ -30,8 +33,14 @@ export default function ListingCard({
   const conditionMeta = CONDITION_COLORS[listing.condition] || { label: listing.condition, class: 'badge-blue' };
   const categoryIcon = CATEGORY_ICONS[listing.category] || '📦';
 
+  const leadingBid = listing.currentLeadingBid != null
+    ? listing.currentLeadingBid
+    : (listing.currentPrice != null ? listing.currentPrice : listing.startingPrice);
+  const totalBids = listing.totalBids || (listing.bidHistory ? listing.bidHistory.length : 0);
+  const hasBids = totalBids > 0;
+
   return (
-    <article className={`listing-card ${isCancelled ? 'card-cancelled' : ''}`}>
+    <article className={`listing-card ${isCancelled ? 'card-cancelled' : ''} ${isClosed && !isCancelled ? 'card-closed' : ''}`}>
       {/* Media Header */}
       <div className="card-media" onClick={() => onViewDetails(listing)}>
         <img
@@ -60,11 +69,11 @@ export default function ListingCard({
         {/* Status Overlay Badge */}
         {isCancelled ? (
           <span className="status-pill status-cancelled">🚫 Cancelled</span>
-        ) : isEnded ? (
-          <span className="status-pill status-ended">⌛ Auction Ended</span>
+        ) : isClosed ? (
+          <span className="status-pill status-ended">⌛ Auction Closed</span>
         ) : (
           <span className="status-pill status-active">
-            ⏳ {timeLeft}
+            ⏳ {countdown.text}
           </span>
         )}
 
@@ -100,15 +109,29 @@ export default function ListingCard({
           {listing.description}
         </p>
 
-        {/* Pricing Specs */}
+        {/* Pricing & Bidding Specs */}
         <div className="pricing-grid">
           <div className="price-item">
-            <span className="price-label">Starting Price</span>
-            <span className="price-value">${Number(listing.startingPrice).toFixed(2)}</span>
+            <span className="price-label">
+              {hasBids ? 'Leading Bid' : 'Starting Bid'}
+            </span>
+            <span className="price-value" title={`Current Leading Bid: $${Number(leadingBid).toFixed(2)}`}>
+              ${Number(leadingBid).toFixed(2)}
+            </span>
+            <span className="price-subnote">
+              {hasBids ? `🔥 ${totalBids} ${totalBids === 1 ? 'bid' : 'bids'}` : 'No bids yet'}
+            </span>
           </div>
-          <div className="price-item">
-            <span className="price-label">Min Increment</span>
-            <span className="price-increment">+${Number(listing.minBidIncrement).toFixed(2)}</span>
+
+          <div className="price-item price-item-secondary">
+            <div className="sub-price-row">
+              <span className="price-label">Start Price</span>
+              <span className="price-subvalue">${Number(listing.startingPrice).toFixed(2)}</span>
+            </div>
+            <div className="sub-price-row">
+              <span className="price-label">Min Increment</span>
+              <span className="price-increment">+${Number(listing.minBidIncrement).toFixed(2)}</span>
+            </div>
           </div>
         </div>
 
@@ -125,9 +148,9 @@ export default function ListingCard({
           <button
             className="btn-secondary btn-sm"
             onClick={() => onViewDetails(listing)}
-            title="View item photos and details"
+            title="View item photos, details, and bid history"
           >
-            Details
+            Details & History
           </button>
 
           {isOwner ? (
@@ -135,18 +158,18 @@ export default function ListingCard({
               <button
                 className="btn-edit btn-sm"
                 onClick={() => onEdit(listing)}
-                disabled={isCancelled}
-                title={isCancelled ? 'Cancelled listings cannot be edited' : 'Edit your listing'}
+                disabled={isCancelled || isClosed}
+                title={isCancelled ? 'Cancelled listings cannot be edited' : isClosed ? 'Closed auctions cannot be edited' : 'Edit your listing'}
               >
                 ✏️ Edit
               </button>
               <button
                 className="btn-cancel btn-sm"
                 onClick={() => onCancel(listing)}
-                disabled={isCancelled}
-                title={isCancelled ? 'Listing is already cancelled' : 'Cancel this listing'}
+                disabled={isCancelled || isClosed}
+                title={isCancelled ? 'Listing is already cancelled' : isClosed ? 'Closed auctions cannot be cancelled' : 'Cancel this listing'}
               >
-                {isCancelled ? 'Cancelled' : '🛑 Cancel'}
+                {isCancelled ? 'Cancelled' : isClosed ? 'Closed' : '🛑 Cancel'}
               </button>
             </>
           ) : (
@@ -158,37 +181,4 @@ export default function ListingCard({
       </div>
     </article>
   );
-}
-
-function formatTimeRemaining(closingTimeStr) {
-  if (!closingTimeStr) return 'Ended';
-  const closing = new Date(closingTimeStr);
-  const now = new Date();
-  const diffMs = closing - now;
-  if (diffMs <= 0) return 'Ended';
-
-  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-  const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
-
-  if (days > 0) return `${days}d ${hours}h left`;
-  if (hours > 0) return `${hours}h ${minutes}m left`;
-  return `${minutes}m ${seconds}s left`;
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return 'N/A';
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return dateStr;
-  }
 }

@@ -1,5 +1,6 @@
 package com.campusbid.backend.dto;
 
+import com.campusbid.backend.model.BidRecord;
 import com.campusbid.backend.model.ItemCondition;
 import com.campusbid.backend.model.Listing;
 import com.campusbid.backend.model.ListingStatus;
@@ -21,6 +22,10 @@ public class ListingResponse {
     private BigDecimal startingPrice;
     private BigDecimal minBidIncrement;
     private BigDecimal currentPrice;
+    private BigDecimal currentLeadingBid;
+    private BigDecimal minNextBid;
+    private List<BidRecord> bidHistory = new ArrayList<>();
+    private int totalBids;
     private LocalDateTime closingTime;
     private ListingStatus status;
     private String sellerId;
@@ -29,6 +34,7 @@ public class ListingResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private boolean isExpired;
+    private boolean isClosed;
     private long secondsRemaining;
 
     public ListingResponse() {
@@ -45,6 +51,21 @@ public class ListingResponse {
         dto.setStartingPrice(listing.getStartingPrice());
         dto.setMinBidIncrement(listing.getMinBidIncrement());
         dto.setCurrentPrice(listing.getCurrentPrice());
+        dto.setCurrentLeadingBid(listing.getCurrentPrice());
+
+        BigDecimal nextBid = listing.getCurrentPrice() != null && listing.getMinBidIncrement() != null
+                ? listing.getCurrentPrice().add(listing.getMinBidIncrement())
+                : listing.getStartingPrice();
+        dto.setMinNextBid(nextBid);
+
+        if (listing.getBidHistory() != null) {
+            dto.setBidHistory(new ArrayList<>(listing.getBidHistory()));
+            dto.setTotalBids(listing.getBidHistory().size());
+        } else {
+            dto.setBidHistory(new ArrayList<>());
+            dto.setTotalBids(0);
+        }
+
         dto.setClosingTime(listing.getClosingTime());
         dto.setStatus(listing.getStatus());
         dto.setSellerId(listing.getSellerId());
@@ -66,10 +87,10 @@ public class ListingResponse {
                 dto.setSecondsRemaining(Duration.between(now, listing.getClosingTime()).getSeconds());
             }
         }
+        dto.setClosed(dto.isExpired() || dto.getStatus() == ListingStatus.ENDED || dto.getStatus() == ListingStatus.CANCELLED);
         return dto;
     }
 
-    // Getters and Setters
     public Long getId() {
         return id;
     }
@@ -142,6 +163,38 @@ public class ListingResponse {
         this.currentPrice = currentPrice;
     }
 
+    public BigDecimal getCurrentLeadingBid() {
+        return currentLeadingBid;
+    }
+
+    public void setCurrentLeadingBid(BigDecimal currentLeadingBid) {
+        this.currentLeadingBid = currentLeadingBid;
+    }
+
+    public BigDecimal getMinNextBid() {
+        return minNextBid;
+    }
+
+    public void setMinNextBid(BigDecimal minNextBid) {
+        this.minNextBid = minNextBid;
+    }
+
+    public List<BidRecord> getBidHistory() {
+        return bidHistory;
+    }
+
+    public void setBidHistory(List<BidRecord> bidHistory) {
+        this.bidHistory = bidHistory;
+    }
+
+    public int getTotalBids() {
+        return totalBids;
+    }
+
+    public void setTotalBids(int totalBids) {
+        this.totalBids = totalBids;
+    }
+
     public LocalDateTime getClosingTime() {
         return closingTime;
     }
@@ -204,6 +257,14 @@ public class ListingResponse {
 
     public void setExpired(boolean expired) {
         isExpired = expired;
+    }
+
+    public boolean isClosed() {
+        return isClosed;
+    }
+
+    public void setClosed(boolean closed) {
+        isClosed = closed;
     }
 
     public long getSecondsRemaining() {

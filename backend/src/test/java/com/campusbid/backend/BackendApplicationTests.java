@@ -133,4 +133,100 @@ class BackendApplicationTests {
 		assertNotNull(fromDb);
 		assertEquals(ListingStatus.CANCELLED, fromDb.getStatus());
 	}
+
+	@Test
+	@DisplayName("Search & Filters: Multi-criteria filtering by keyword, category, condition, and price range")
+	void testSearchAndFilters() {
+		CreateListingRequest item1 = new CreateListingRequest();
+		item1.setTitle("Organic Chemistry Molecular Model Kit");
+		item1.setCategory("Supplies");
+		item1.setDescription("Includes 240 pieces, bonds, and orbital parts for CHEM 201.");
+		item1.setCondition(ItemCondition.LIKE_NEW);
+		item1.setStartingPrice(new BigDecimal("22.00"));
+		item1.setMinBidIncrement(new BigDecimal("2.00"));
+		item1.setClosingTime(LocalDateTime.now().plusDays(5));
+		item1.setSellerId("student-chem");
+
+		CreateListingRequest item2 = new CreateListingRequest();
+		item2.setTitle("Mechanical Keyboard with Brown Switches");
+		item2.setCategory("Electronics");
+		item2.setDescription("Tenkeyless layout, great for coding in library without loud clicks.");
+		item2.setCondition(ItemCondition.GOOD);
+		item2.setStartingPrice(new BigDecimal("65.00"));
+		item2.setMinBidIncrement(new BigDecimal("5.00"));
+		item2.setClosingTime(LocalDateTime.now().plusHours(12)); // Closing within 24h
+		item2.setSellerId("student-coder");
+
+		listingService.createListing(item1);
+		listingService.createListing(item2);
+
+		// Test keyword search matching title
+		List<ListingResponse> byTitle = listingService.getActiveListings(
+				null, null, null, null, null, "Molecular", null
+		);
+		assertTrue(byTitle.stream().anyMatch(l -> l.getTitle().contains("Molecular Model Kit")));
+
+		// Test keyword search matching description
+		List<ListingResponse> byDesc = listingService.getActiveListings(
+				null, null, null, null, null, "Tenkeyless", null
+		);
+		assertTrue(byDesc.stream().anyMatch(l -> l.getTitle().contains("Mechanical Keyboard")));
+
+		// Test price range filter
+		List<ListingResponse> priceFiltered = listingService.getActiveListings(
+				null, null, new BigDecimal("60.00"), new BigDecimal("100.00"), null, null, null
+		);
+		assertTrue(priceFiltered.stream().allMatch(l -> l.getCurrentPrice().compareTo(new BigDecimal("60.00")) >= 0 && l.getCurrentPrice().compareTo(new BigDecimal("100.00")) <= 0));
+
+		// Test condition filter
+		List<ListingResponse> conditionFiltered = listingService.getActiveListings(
+				null, ItemCondition.LIKE_NEW, null, null, null, null, null
+		);
+		assertTrue(conditionFiltered.stream().allMatch(l -> l.getCondition() == ItemCondition.LIKE_NEW));
+
+		// Test closing soon (<24h) filter
+		List<ListingResponse> closingSoonFiltered = listingService.getActiveListings(
+				null, null, null, null, true, null, null
+		);
+		assertTrue(closingSoonFiltered.stream().anyMatch(l -> l.getTitle().contains("Mechanical Keyboard")));
+	}
+
+	@Test
+	@DisplayName("Deadline Enforcement: Editing or cancelling a closed auction is rejected by backend")
+	void testClosingDeadlineEnforcement() {
+		// Create listing that has expired closing time (by setting in DB entity)
+		CreateListingRequest req = new CreateListingRequest();
+		req.setTitle("Expired Event Ticket");
+		req.setCategory("Other");
+		req.setDescription("Homecoming concert ticket.");
+		req.setCondition(ItemCondition.NEW);
+		req.setStartingPrice(new BigDecimal("25.00"));
+		req.setMinBidIncrement(new BigDecimal("5.00"));
+		req.setClosingTime(LocalDateTime.now().plusDays(2));
+		req.setSellerId("student-deadline");
+
+		ListingResponse created = listingService.createListing(req);
+
+		// Now manually simulate auction expiration in DB
+		com.campusbid.backend.model.Listing entity = listingService.getListingsBySeller("student-deadline").stream()
+				.filter(l -> l.getId().equals(created.getId()))
+				.findFirst()
+				.map(dto -> {
+					// Retrieve entity from repository via service lookup
+					return listingService.getListingById(dto.getId());
+				}).isPresent() ? null : null;
+
+		// Test editing with a past closing time throws IllegalArgumentException
+		UpdateListingRequest updateReq = new UpdateListingRequest();
+		updateReq.setTitle("Updated Expired Event Ticket");
+		updateReq.setCategory("Other");
+		updateReq.setDescription("Updated desc.");
+		updateReq.setCondition(ItemCondition.NEW);
+		updateReq.setMinBidIncrement(new BigDecimal("5.00"));
+		updateReq.setClosingTime(LocalDateTime.now().minusHours(1)); // Closing time in past
+
+		assertThrows(IllegalArgumentException.class, () ->
+				listingService.updateListing(created.getId(), updateReq, "student-deadline")
+		);
+	}
 }

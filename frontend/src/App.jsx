@@ -16,9 +16,16 @@ export default function App() {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('active'); // 'active' | 'my-listings' | 'all'
+
+  // Search & Filter state
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [debouncedKeyword, setDebouncedKeyword] = useState('');
   const [conditionFilter, setConditionFilter] = useState('ALL');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [closingSoon, setClosingSoon] = useState(false);
+  const [sortBy, setSortBy] = useState('newest');
 
   // Modals state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -33,66 +40,116 @@ export default function App() {
     setToast({ message, type });
   }, []);
 
-  // Fetch listings based on current tab and filters
-  const loadListings = useCallback(async () => {
-    try {
-      let data = [];
-      if (activeTab === 'my-listings') {
-        data = await listingApi.getMyListings(currentStudent.id);
-      } else if (activeTab === 'all') {
-        data = await listingApi.getAllListings('', selectedCategory, searchKeyword);
-      } else {
-        // 'active'
-        data = await listingApi.getActiveListings(selectedCategory, searchKeyword);
-      }
-      setListings(data);
-    } catch (err) {
-      showToast(err.message || 'Could not load listings from server.', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [activeTab, selectedCategory, searchKeyword, currentStudent.id, showToast]);
+  // Debounce search keyword (300ms) to ensure smooth typing without API thrashing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedKeyword(searchKeyword);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchKeyword]);
 
+  // Check if any filter is active
+  const isFilterActive = selectedCategory !== 'All' ||
+    conditionFilter !== 'ALL' ||
+    Boolean(searchKeyword.trim()) ||
+    minPrice !== '' ||
+    maxPrice !== '' ||
+    closingSoon ||
+    sortBy !== 'newest';
+
+  // Refresh trigger for modal completion
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const reloadListings = useCallback(() => {
+    setRefreshTrigger((prev) => prev + 1);
+  }, []);
+
+  // Clear all filters action
+  const clearAllFilters = useCallback(() => {
+    setSelectedCategory('All');
+    setConditionFilter('ALL');
+    setSearchKeyword('');
+    setMinPrice('');
+    setMaxPrice('');
+    setClosingSoon(false);
+    setSortBy('newest');
+  }, []);
+
+  // Fetch listings based on current tab, multi-criteria filters, and keyword search
   useEffect(() => {
     let ignore = false;
-    async function initFetch() {
+
+    async function fetchData() {
       try {
         let data = [];
         if (activeTab === 'my-listings') {
-          data = await listingApi.getMyListings(currentStudent.id);
-        } else if (activeTab === 'all') {
-          data = await listingApi.getAllListings('', selectedCategory, searchKeyword);
+          const raw = await listingApi.getMyListings(currentStudent.id);
+          // Client-side filter for seller's personal lots
+          data = raw.filter((item) => {
+            if (selectedCategory !== 'All' && item.category !== selectedCategory) return false;
+            if (conditionFilter !== 'ALL' && item.condition !== conditionFilter) return false;
+            if (minPrice !== '' && Number(item.startingPrice) < Number(minPrice)) return false;
+            if (maxPrice !== '' && Number(item.startingPrice) > Number(maxPrice)) return false;
+            if (closingSoon) {
+              const closing = new Date(item.closingTime).getTime();
+              const now = Date.now();
+              if (closing <= now || closing > now + 24 * 60 * 60 * 1000) return false;
+            }
+            if (debouncedKeyword.trim()) {
+              const kw = debouncedKeyword.trim().toLowerCase();
+              const inTitle = item.title && item.title.toLowerCase().includes(kw);
+              const inDesc = item.description && item.description.toLowerCase().includes(kw);
+              if (!inTitle && !inDesc) return false;
+            }
+            return true;
+          });
         } else {
-          data = await listingApi.getActiveListings(selectedCategory, searchKeyword);
+          const filterParams = {
+            category: selectedCategory,
+            condition: conditionFilter,
+            minPrice: minPrice !== '' ? minPrice : undefined,
+            maxPrice: maxPrice !== '' ? maxPrice : undefined,
+            closingSoon: closingSoon || undefined,
+            keyword: debouncedKeyword,
+            sortBy: sortBy !== 'newest' ? sortBy : undefined,
+          };
+
+          if (activeTab === 'all') {
+            data = await listingApi.getAllListings(filterParams);
+          } else {
+            // 'active'
+            data = await listingApi.getActiveListings(filterParams);
+          }
         }
         if (!ignore) {
           setListings(data);
+          setLoading(false);
         }
       } catch (err) {
         if (!ignore) {
           showToast(err.message || 'Could not load listings from server.', 'error');
-        }
-      } finally {
-        if (!ignore) {
           setLoading(false);
         }
       }
     }
 
-    initFetch();
+    fetchData();
 
     return () => {
       ignore = true;
     };
-  }, [activeTab, selectedCategory, searchKeyword, currentStudent.id, showToast]);
-
-  // Derived filtered listings for condition
-  const displayedListings = listings.filter((item) => {
-    if (conditionFilter !== 'ALL' && item.condition !== conditionFilter) {
-      return false;
-    }
-    return true;
-  });
+  }, [
+    activeTab,
+    selectedCategory,
+    conditionFilter,
+    minPrice,
+    maxPrice,
+    closingSoon,
+    sortBy,
+    debouncedKeyword,
+    currentStudent.id,
+    refreshTrigger,
+    showToast,
+  ]);
 
   // Calculate summary stats
   const activeCount = listings.filter((l) => l.status === 'ACTIVE' && !l.expired).length;
@@ -110,7 +167,7 @@ export default function App() {
         activeTab={activeTab}
         onTabChange={(tab) => {
           setActiveTab(tab);
-          setSelectedCategory('All');
+          clearAllFilters();
         }}
         onCreateClick={() => setIsCreateOpen(true)}
         stats={{ activeCount, myCount }}
@@ -129,7 +186,7 @@ export default function App() {
               Campus Flea Market & Student Auctions
             </h1>
             <p className="hero-subtitle">
-              Browse pre-loved textbooks, dorm essentials, electronics, and campus bikes directly from classmates. Place bids on active lots before the hammer falls.
+              Browse pre-loved textbooks, dorm essentials, electronics, and campus bikes directly from classmates. Search items by keyword, filter by condition or price, and bid on active lots before the hammer falls.
             </p>
 
             <div className="hero-cta-row">
@@ -147,30 +204,57 @@ export default function App() {
             </div>
           </div>
         </section>
-        {/* Search & Category Filter Controls */}
+
+        {/* Search & Multi-Criteria Filter Controls */}
         <section className="filter-panel">
+          {/* Row 1: Search Bar & Sort Dropdown */}
           <div className="search-bar-row">
             <div className="search-input-wrapper">
               <span className="search-icon">🔍</span>
               <input
                 type="text"
                 className="search-input"
-                placeholder="Search by title or description (e.g. MacBook, Calculus, Fridge)..."
+                placeholder="Search auctions by item title or description (e.g. MacBook, Calculus, Fridge)..."
                 value={searchKeyword}
                 onChange={(e) => setSearchKeyword(e.target.value)}
               />
               {searchKeyword && (
-                <button className="search-clear-btn" onClick={() => setSearchKeyword('')}>
+                <button
+                  type="button"
+                  className="search-clear-btn"
+                  onClick={() => setSearchKeyword('')}
+                  title="Clear search keyword"
+                >
                   ✕
                 </button>
               )}
             </div>
 
+            {/* Sort Selector */}
+            <div className="sort-select-wrapper">
+              <label htmlFor="sort-filter" className="filter-label">Sort:</label>
+              <select
+                id="sort-filter"
+                className="filter-select"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+              >
+                <option value="newest">✨ Newest First</option>
+                <option value="closingSoon">⏳ Closing Soonest</option>
+                <option value="priceLow">💰 Price: Low to High</option>
+                <option value="priceHigh">💎 Price: High to Low</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Row 2: Condition, Price Range, Closing Soon, & Clear Button */}
+          <div className="filter-secondary-row">
+            {/* Condition Dropdown */}
             <div className="condition-select-wrapper">
               <label htmlFor="condition-filter" className="filter-label">Condition:</label>
               <select
                 id="condition-filter"
-                className="form-select filter-select"
+                className="filter-select"
                 value={conditionFilter}
                 onChange={(e) => setConditionFilter(e.target.value)}
               >
@@ -182,13 +266,108 @@ export default function App() {
                 <option value="POOR">Poor</option>
               </select>
             </div>
+
+            {/* Price Range Inputs */}
+            <div className="price-filter-wrapper">
+              <span className="filter-label">Price Range:</span>
+              <div className="price-inputs-group">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="Min $"
+                  className="price-num-input"
+                  value={minPrice}
+                  onChange={(e) => setMinPrice(e.target.value)}
+                  title="Minimum price"
+                />
+                <span className="price-divider">–</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="Max $"
+                  className="price-num-input"
+                  value={maxPrice}
+                  onChange={(e) => setMaxPrice(e.target.value)}
+                  title="Maximum price"
+                />
+              </div>
+            </div>
+
+            {/* Closing Soon Toggle */}
+            <button
+              type="button"
+              className={`closing-soon-toggle ${closingSoon ? 'active' : ''}`}
+              onClick={() => setClosingSoon((prev) => !prev)}
+              title="Filter lots ending within the next 24 hours"
+            >
+              <span>⏳ Closing Soon (&lt;24h)</span>
+              {closingSoon && <span>✓</span>}
+            </button>
+
+            {/* Clear All Filters Button */}
+            {isFilterActive && (
+              <button
+                type="button"
+                className="btn-clear-filters"
+                onClick={clearAllFilters}
+                title="Reset all filters and search keyword"
+              >
+                🔄 Clear All Filters
+              </button>
+            )}
           </div>
 
-          {/* Category Chips */}
+          {/* Row 3: Active Filters Summary Tag Row */}
+          {isFilterActive && (
+            <div className="active-filters-bar">
+              <span className="active-filters-title">Active Filters:</span>
+              {searchKeyword.trim() && (
+                <span className="active-filter-tag">
+                  Keyword: &ldquo;{searchKeyword.trim()}&rdquo;
+                  <button type="button" className="remove-filter-btn" onClick={() => setSearchKeyword('')}>✕</button>
+                </span>
+              )}
+              {selectedCategory !== 'All' && (
+                <span className="active-filter-tag">
+                  Category: {selectedCategory}
+                  <button type="button" className="remove-filter-btn" onClick={() => setSelectedCategory('All')}>✕</button>
+                </span>
+              )}
+              {conditionFilter !== 'ALL' && (
+                <span className="active-filter-tag">
+                  Condition: {conditionFilter}
+                  <button type="button" className="remove-filter-btn" onClick={() => setConditionFilter('ALL')}>✕</button>
+                </span>
+              )}
+              {(minPrice !== '' || maxPrice !== '') && (
+                <span className="active-filter-tag">
+                  Price: ${minPrice || '0'} – ${maxPrice || '∞'}
+                  <button type="button" className="remove-filter-btn" onClick={() => { setMinPrice(''); setMaxPrice(''); }}>✕</button>
+                </span>
+              )}
+              {closingSoon && (
+                <span className="active-filter-tag">
+                  Closing Soon (&lt;24h)
+                  <button type="button" className="remove-filter-btn" onClick={() => setClosingSoon(false)}>✕</button>
+                </span>
+              )}
+              {sortBy !== 'newest' && (
+                <span className="active-filter-tag">
+                  Sort: {sortBy}
+                  <button type="button" className="remove-filter-btn" onClick={() => setSortBy('newest')}>✕</button>
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Row 4: Category Chips */}
           <div className="category-chips-scroll">
             {CATEGORIES.map((cat) => (
               <button
                 key={cat}
+                type="button"
                 className={`category-chip ${selectedCategory === cat ? 'active' : ''}`}
                 onClick={() => setSelectedCategory(cat)}
               >
@@ -219,7 +398,7 @@ export default function App() {
           </div>
 
           <div className="results-counter">
-            Showing <strong>{displayedListings.length}</strong> items
+            Showing <strong>{listings.length}</strong> items
           </div>
         </section>
 
@@ -229,22 +408,31 @@ export default function App() {
             <div className="spinner-large"></div>
             <p>Fetching listings from CampusBid backend...</p>
           </div>
-        ) : displayedListings.length === 0 ? (
+        ) : listings.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">📦</div>
             <h3 className="empty-title">No listings found</h3>
             <p className="empty-desc">
               {activeTab === 'my-listings'
                 ? `You haven't listed any items under ${currentStudent.name} (${currentStudent.id}) yet.`
-                : 'No items match your selected filters or search keyword.'}
+                : isFilterActive
+                ? 'No items match your active search keyword and filter criteria. Try clearing some filters or searching with different terms.'
+                : 'No auction items currently available in this category.'}
             </p>
-            <button className="btn-primary" onClick={() => setIsCreateOpen(true)}>
-              + Create a Listing
-            </button>
+            <div className="empty-actions" style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', marginTop: '1rem' }}>
+              {isFilterActive && (
+                <button type="button" className="btn-secondary" onClick={clearAllFilters}>
+                  🔄 Clear All Filters
+                </button>
+              )}
+              <button type="button" className="btn-primary" onClick={() => setIsCreateOpen(true)}>
+                + Create a Listing
+              </button>
+            </div>
           </div>
         ) : (
           <div className="listings-grid">
-            {displayedListings.map((listing) => (
+            {listings.map((listing) => (
               <ListingCard
                 key={listing.id}
                 listing={listing}
@@ -277,7 +465,7 @@ export default function App() {
         onClose={() => setIsCreateOpen(false)}
         currentStudent={currentStudent}
         onSuccess={() => {
-          loadListings();
+          reloadListings();
         }}
         showToast={showToast}
       />
@@ -288,7 +476,7 @@ export default function App() {
         listing={editTarget}
         currentStudent={currentStudent}
         onSuccess={() => {
-          loadListings();
+          reloadListings();
         }}
         showToast={showToast}
       />
@@ -299,7 +487,7 @@ export default function App() {
         listing={cancelTarget}
         currentStudent={currentStudent}
         onSuccess={() => {
-          loadListings();
+          reloadListings();
         }}
         showToast={showToast}
       />

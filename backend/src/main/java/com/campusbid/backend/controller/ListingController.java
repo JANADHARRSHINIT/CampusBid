@@ -56,27 +56,41 @@ public class ListingController {
     }
 
     /**
-     * View active listings (with optional filtering by category or keyword).
+     * View active listings with multi-criteria filtering and keyword search.
      */
     @GetMapping
     public ResponseEntity<ApiResponse<List<ListingResponse>>> getActiveListings(
             @RequestParam(required = false) String category,
-            @RequestParam(required = false) String keyword
+            @RequestParam(required = false) com.campusbid.backend.model.ItemCondition condition,
+            @RequestParam(required = false) java.math.BigDecimal minPrice,
+            @RequestParam(required = false) java.math.BigDecimal maxPrice,
+            @RequestParam(required = false) Boolean closingSoon,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String sortBy
     ) {
-        List<ListingResponse> listings = listingService.getActiveListings(category, keyword);
+        List<ListingResponse> listings = listingService.getActiveListings(
+                category, condition, minPrice, maxPrice, closingSoon, keyword, sortBy
+        );
         return ResponseEntity.ok(ApiResponse.success("Active listings retrieved", listings));
     }
 
     /**
-     * View all listings including CANCELLED and ENDED (for management or seller view).
+     * View all listings including CANCELLED and ENDED with multi-criteria filtering.
      */
     @GetMapping("/all")
     public ResponseEntity<ApiResponse<List<ListingResponse>>> getAllListings(
             @RequestParam(required = false) ListingStatus status,
             @RequestParam(required = false) String category,
-            @RequestParam(required = false) String keyword
+            @RequestParam(required = false) com.campusbid.backend.model.ItemCondition condition,
+            @RequestParam(required = false) java.math.BigDecimal minPrice,
+            @RequestParam(required = false) java.math.BigDecimal maxPrice,
+            @RequestParam(required = false) Boolean closingSoon,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String sortBy
     ) {
-        List<ListingResponse> listings = listingService.getAllListings(status, category, keyword);
+        List<ListingResponse> listings = listingService.getAllListings(
+                status, category, condition, minPrice, maxPrice, closingSoon, keyword, sortBy
+        );
         return ResponseEntity.ok(ApiResponse.success("All listings retrieved", listings));
     }
 
