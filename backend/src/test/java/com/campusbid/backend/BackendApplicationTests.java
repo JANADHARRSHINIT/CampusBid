@@ -23,6 +23,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.campusbid.backend.dto.NotificationResponse;
+import com.campusbid.backend.model.NotificationType;
+import com.campusbid.backend.service.NotificationService;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
@@ -31,10 +35,14 @@ class BackendApplicationTests {
 	@Autowired
 	private ListingService listingService;
 
+	@Autowired
+	private NotificationService notificationService;
+
 	@Test
 	@DisplayName("Context loads successfully")
 	void contextLoads() {
 		assertNotNull(listingService);
+		assertNotNull(notificationService);
 	}
 
 	@Test
@@ -634,6 +642,198 @@ class BackendApplicationTests {
 		ListingResponse fromDb = listingService.getListingById(created.getId());
 		assertEquals(1, fromDb.getBidHistory().size());
 		assertEquals(new BigDecimal("35.00"), fromDb.getBidHistory().get(0).getAmount());
+	}
+
+	@Test
+	@DisplayName("Notification: Bid placement emits BID_ACCEPTED, BID_RECEIVED, and OUTBID events")
+	void testBidPlacementNotificationsAndOutbid() {
+		CreateListingRequest createReq = new CreateListingRequest();
+		createReq.setTitle("Mechanical Keyboard RGB");
+		createReq.setCategory("Electronics");
+		createReq.setDescription("Tactile brown switches.");
+		createReq.setCondition(ItemCondition.LIKE_NEW);
+		createReq.setStartingPrice(new BigDecimal("40.00"));
+		createReq.setMinBidIncrement(new BigDecimal("5.00"));
+		createReq.setClosingTime(LocalDateTime.now().plusDays(2));
+		createReq.setSellerId("student-notif-seller");
+		createReq.setSellerName("Seller Sam");
+
+		ListingResponse created = listingService.createListing(createReq);
+
+		// First bid from Student 1
+		PlaceBidRequest bid1 = new PlaceBidRequest();
+		bid1.setAmount(new BigDecimal("45.00"));
+		bid1.setBidderId("student-notif-buyer1");
+		bid1.setBidderName("Buyer One");
+		listingService.placeBid(created.getId(), bid1, "student-notif-buyer1");
+
+		// Verify Buyer 1 got BID_ACCEPTED
+		List<NotificationResponse> buyer1Notifs = notificationService.getNotificationsForRecipient("student-notif-buyer1");
+		assertTrue(buyer1Notifs.stream().anyMatch(n -> n.getType() == NotificationType.BID_ACCEPTED));
+
+		// Verify Seller got BID_RECEIVED
+		List<NotificationResponse> sellerNotifs = notificationService.getNotificationsForRecipient("student-notif-seller");
+		assertTrue(sellerNotifs.stream().anyMatch(n -> n.getType() == NotificationType.BID_RECEIVED && n.getMessage().contains("Buyer One")));
+
+		// Second bid from Student 2 (outbids Student 1)
+		PlaceBidRequest bid2 = new PlaceBidRequest();
+		bid2.setAmount(new BigDecimal("55.00"));
+		bid2.setBidderId("student-notif-buyer2");
+		bid2.setBidderName("Buyer Two");
+		listingService.placeBid(created.getId(), bid2, "student-notif-buyer2");
+
+		// Verify Student 1 received OUTBID notification!
+		buyer1Notifs = notificationService.getNotificationsForRecipient("student-notif-buyer1");
+		assertTrue(buyer1Notifs.stream().anyMatch(n -> n.getType() == NotificationType.OUTBID && n.getMessage().contains("Buyer Two")));
+
+		// Verify Student 2 got BID_ACCEPTED
+		List<NotificationResponse> buyer2Notifs = notificationService.getNotificationsForRecipient("student-notif-buyer2");
+		assertTrue(buyer2Notifs.stream().anyMatch(n -> n.getType() == NotificationType.BID_ACCEPTED));
+	}
+
+	@Test
+	@DisplayName("Notification: Auction closing emits AUCTION_WON and AWAITING_APPROVAL with deduplication")
+	void testAuctionClosingNotificationsAndDeduplication() {
+		CreateListingRequest createReq = new CreateListingRequest();
+		createReq.setTitle("Calculus Early Transcendentals");
+		createReq.setCategory("Textbooks");
+		createReq.setDescription("Great condition with formula sheets.");
+		createReq.setCondition(ItemCondition.GOOD);
+		createReq.setStartingPrice(new BigDecimal("25.00"));
+		createReq.setMinBidIncrement(new BigDecimal("5.00"));
+		createReq.setClosingTime(LocalDateTime.now().plusDays(1));
+		createReq.setSellerId("student-calc-seller");
+
+		ListingResponse created = listingService.createListing(createReq);
+
+		PlaceBidRequest bid = new PlaceBidRequest();
+		bid.setAmount(new BigDecimal("30.00"));
+		bid.setBidderId("student-calc-winner");
+		bid.setBidderName("Calc Champ");
+		listingService.placeBid(created.getId(), bid, "student-calc-winner");
+
+		// Close auction
+		listingService.closeAuction(created.getId(), "student-calc-seller");
+
+		// Verify Winner got AUCTION_WON
+		List<NotificationResponse> winnerNotifs = notificationService.getNotificationsForRecipient("student-calc-winner");
+		assertTrue(winnerNotifs.stream().anyMatch(n -> n.getType() == NotificationType.AUCTION_WON));
+
+		// Verify Seller got AWAITING_APPROVAL and AUCTION_CLOSED
+		List<NotificationResponse> sellerNotifs = notificationService.getNotificationsForRecipient("student-calc-seller");
+		assertTrue(sellerNotifs.stream().anyMatch(n -> n.getType() == NotificationType.AWAITING_APPROVAL));
+		assertTrue(sellerNotifs.stream().anyMatch(n -> n.getType() == NotificationType.AUCTION_CLOSED));
+
+		long wonCountBefore = winnerNotifs.stream().filter(n -> n.getType() == NotificationType.AUCTION_WON).count();
+
+		// Trigger batch process closing again - duplicate notifications must be prevented!
+		listingService.processExpiredAuctions();
+		List<NotificationResponse> winnerNotifsAfter = notificationService.getNotificationsForRecipient("student-calc-winner");
+		long wonCountAfter = winnerNotifsAfter.stream().filter(n -> n.getType() == NotificationType.AUCTION_WON).count();
+		assertEquals(wonCountBefore, wonCountAfter);
+	}
+
+	@Test
+	@DisplayName("Notification: Seller decision emits BID_APPROVED or BID_REJECTED to winning bidder")
+	void testSellerDecisionNotifications() {
+		CreateListingRequest createReq = new CreateListingRequest();
+		createReq.setTitle("Desk Lamp LED");
+		createReq.setCategory("Dorm & Furniture");
+		createReq.setDescription("Adjustable brightness desk lamp.");
+		createReq.setCondition(ItemCondition.LIKE_NEW);
+		createReq.setStartingPrice(new BigDecimal("15.00"));
+		createReq.setMinBidIncrement(new BigDecimal("2.00"));
+		createReq.setClosingTime(LocalDateTime.now().plusDays(2));
+		createReq.setSellerId("student-lamp-seller");
+
+		ListingResponse created = listingService.createListing(createReq);
+
+		PlaceBidRequest bid = new PlaceBidRequest();
+		bid.setAmount(new BigDecimal("20.00"));
+		bid.setBidderId("student-lamp-winner");
+		bid.setBidderName("Lamp Lover");
+		listingService.placeBid(created.getId(), bid, "student-lamp-winner");
+
+		listingService.closeAuction(created.getId(), "student-lamp-seller");
+
+		// Seller approves winning bid
+		listingService.processSellerDecision(created.getId(), "APPROVE", "Meet at dorm lobby", "student-lamp-seller");
+
+		// Winner must have received BID_APPROVED notification
+		List<NotificationResponse> winnerNotifs = notificationService.getNotificationsForRecipient("student-lamp-winner");
+		assertTrue(winnerNotifs.stream().anyMatch(n -> n.getType() == NotificationType.BID_APPROVED && n.getMessage().contains("Meet at dorm lobby")));
+	}
+
+	@Test
+	@DisplayName("Notification: Handover confirmations emit HANDOVER_CONFIRMED and SALE_COMPLETED to both parties")
+	void testHandoverNotifications() {
+		CreateListingRequest createReq = new CreateListingRequest();
+		createReq.setTitle("Graphing Calculator TI-84");
+		createReq.setCategory("Electronics");
+		createReq.setDescription("Fully working with fresh batteries.");
+		createReq.setCondition(ItemCondition.GOOD);
+		createReq.setStartingPrice(new BigDecimal("50.00"));
+		createReq.setMinBidIncrement(new BigDecimal("5.00"));
+		createReq.setClosingTime(LocalDateTime.now().plusDays(1));
+		createReq.setSellerId("student-calc84-seller");
+
+		ListingResponse created = listingService.createListing(createReq);
+
+		PlaceBidRequest bid = new PlaceBidRequest();
+		bid.setAmount(new BigDecimal("60.00"));
+		bid.setBidderId("student-calc84-buyer");
+		listingService.placeBid(created.getId(), bid, "student-calc84-buyer");
+
+		listingService.closeAuction(created.getId(), "student-calc84-seller");
+		listingService.processSellerDecision(created.getId(), "APPROVE", "Approved", "student-calc84-seller");
+
+		// 1. Seller confirms handover -> buyer receives HANDOVER_CONFIRMED
+		listingService.confirmHandover(created.getId(), "student-calc84-seller");
+		List<NotificationResponse> buyerNotifs = notificationService.getNotificationsForRecipient("student-calc84-buyer");
+		assertTrue(buyerNotifs.stream().anyMatch(n -> n.getType() == NotificationType.HANDOVER_CONFIRMED));
+
+		// 2. Buyer confirms handover -> sale is completed -> both receive SALE_COMPLETED
+		listingService.confirmHandover(created.getId(), "student-calc84-buyer");
+
+		List<NotificationResponse> buyerAfter = notificationService.getNotificationsForRecipient("student-calc84-buyer");
+		assertTrue(buyerAfter.stream().anyMatch(n -> n.getType() == NotificationType.SALE_COMPLETED));
+
+		List<NotificationResponse> sellerAfter = notificationService.getNotificationsForRecipient("student-calc84-seller");
+		assertTrue(sellerAfter.stream().anyMatch(n -> n.getType() == NotificationType.SALE_COMPLETED));
+	}
+
+	@Test
+	@DisplayName("Notification: Unread count, mark as read, and unauthorized recipient access control")
+	void testNotificationReadSecurityAndCount() {
+		// Create a test notification for student-alice
+		NotificationResponse notif = notificationService.sendNotification(
+				"student-alice",
+				"Alice",
+				"Test Alert",
+				"This is a test notification message.",
+				NotificationType.BID_RECEIVED,
+				1L,
+				"Sample Item"
+		);
+		assertNotNull(notif);
+		assertFalse(notif.isRead());
+
+		long unreadAlice = notificationService.getUnreadCount("student-alice");
+		assertTrue(unreadAlice >= 1);
+
+		// Bob cannot mark Alice's notification as read
+		assertThrows(UnauthorizedException.class, () -> {
+			notificationService.markAsRead(notif.getId(), "student-bob");
+		});
+
+		// Alice marks her notification as read
+		NotificationResponse marked = notificationService.markAsRead(notif.getId(), "student-alice");
+		assertTrue(marked.isRead());
+		assertNotNull(marked.getReadAt());
+
+		// Mark all as read
+		notificationService.markAllAsRead("student-alice");
+		assertEquals(0, notificationService.getUnreadCount("student-alice"));
 	}
 }
 

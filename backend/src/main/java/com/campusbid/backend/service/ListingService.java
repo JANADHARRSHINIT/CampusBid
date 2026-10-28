@@ -10,6 +10,7 @@ import com.campusbid.backend.model.BidRecord;
 import com.campusbid.backend.model.ItemCondition;
 import com.campusbid.backend.model.Listing;
 import com.campusbid.backend.model.ListingStatus;
+import com.campusbid.backend.model.NotificationType;
 import com.campusbid.backend.repository.ListingRepository;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -25,9 +26,11 @@ import java.util.stream.Collectors;
 public class ListingService {
 
     private final ListingRepository listingRepository;
+    private final NotificationService notificationService;
 
-    public ListingService(ListingRepository listingRepository) {
+    public ListingService(ListingRepository listingRepository, NotificationService notificationService) {
         this.listingRepository = listingRepository;
+        this.notificationService = notificationService;
     }
 
     public ListingResponse createListing(CreateListingRequest request) {
@@ -305,6 +308,19 @@ public class ListingService {
                 ? request.getBidderName().trim()
                 : bidderId;
 
+        // Find previous leading bidder before recording new bid
+        String previousLeadingBidderId = null;
+        String previousLeadingBidderName = null;
+        if (listing.getBidHistory() != null && !listing.getBidHistory().isEmpty()) {
+            BidRecord topBid = listing.getBidHistory().stream()
+                    .max((a, b) -> a.getAmount().compareTo(b.getAmount()))
+                    .orElse(null);
+            if (topBid != null) {
+                previousLeadingBidderId = topBid.getBidderId();
+                previousLeadingBidderName = topBid.getBidderName();
+            }
+        }
+
         // Record accepted bid with server-generated timestamp
         BidRecord bidRecord = new BidRecord(bidderId.trim(), effectiveBidderName, request.getAmount(), now);
         listing.getBidHistory().add(bidRecord);
@@ -314,6 +330,45 @@ public class ListingService {
         listing.setUpdatedAt(now);
 
         Listing saved = listingRepository.save(listing);
+
+        // 1. Notify current bidder that their bid was accepted as the leading bid
+        notificationService.sendNotification(
+                bidderId,
+                effectiveBidderName,
+                "Bid Accepted: Leading Bid on LOT #" + String.format("%03d", listing.getId()),
+                String.format("Your bid of $%.2f on \"%s\" has been accepted and is currently the leading bid!",
+                        request.getAmount(), listing.getTitle()),
+                NotificationType.BID_ACCEPTED,
+                listing.getId(),
+                listing.getTitle()
+        );
+
+        // 2. Notify seller that a new bid was placed on their item
+        notificationService.sendNotification(
+                listing.getSellerId(),
+                listing.getSellerName(),
+                "New Bid Placed on LOT #" + String.format("%03d", listing.getId()),
+                String.format("%s placed a new leading bid of $%.2f on your lot \"%s\".",
+                        effectiveBidderName, request.getAmount(), listing.getTitle()),
+                NotificationType.BID_RECEIVED,
+                listing.getId(),
+                listing.getTitle()
+        );
+
+        // 3. Notify previous leading bidder that they were outbid
+        if (previousLeadingBidderId != null && !previousLeadingBidderId.equalsIgnoreCase(bidderId)) {
+            notificationService.sendNotification(
+                    previousLeadingBidderId,
+                    previousLeadingBidderName,
+                    "Outbid Alert on LOT #" + String.format("%03d", listing.getId()),
+                    String.format("You have been outbid on \"%s\"! %s placed a higher leading bid of $%.2f. Place a new bid before closing to win this lot.",
+                            listing.getTitle(), effectiveBidderName, request.getAmount()),
+                    NotificationType.OUTBID,
+                    listing.getId(),
+                    listing.getTitle()
+            );
+        }
+
         return ListingResponse.fromEntity(saved);
     }
 
@@ -352,12 +407,62 @@ public class ListingService {
             listing.setWinningBidAmount(winner.getAmount());
             listing.setWinningBidTime(winner.getBidTime());
             listing.setStatus(ListingStatus.AWAITING_SELLER_APPROVAL);
+
+            listing.setUpdatedAt(now);
+            listingRepository.save(listing);
+
+            // 1. Notify winning buyer that they won the auction (deduplicated)
+            notificationService.sendNotificationIfNotExists(
+                    winner.getBidderId(),
+                    winner.getBidderName(),
+                    "Congratulations! You Won LOT #" + String.format("%03d", listing.getId()),
+                    String.format("You placed the winning bid of $%.2f for \"%s\"! The auction has closed and is awaiting seller approval.",
+                            winner.getAmount(), listing.getTitle()),
+                    NotificationType.AUCTION_WON,
+                    listing.getId(),
+                    listing.getTitle()
+            );
+
+            // 2. Notify seller that a winning bid is waiting for their approval (deduplicated)
+            notificationService.sendNotificationIfNotExists(
+                    listing.getSellerId(),
+                    listing.getSellerName(),
+                    "Action Needed: Winning Bid Awaiting Approval on LOT #" + String.format("%03d", listing.getId()),
+                    String.format("Your auction for \"%s\" has concluded! The highest bid of $%.2f was placed by %s. Please review and approve or reject this bid.",
+                            listing.getTitle(), winner.getAmount(), winner.getBidderName()),
+                    NotificationType.AWAITING_APPROVAL,
+                    listing.getId(),
+                    listing.getTitle()
+            );
+
+            // 3. Notify seller that auction closed (deduplicated)
+            notificationService.sendNotificationIfNotExists(
+                    listing.getSellerId(),
+                    listing.getSellerName(),
+                    "Auction Closed: LOT #" + String.format("%03d", listing.getId()),
+                    String.format("Auction closed for \"%s\" with %d bids. Highest bid: $%.2f.",
+                            listing.getTitle(), listing.getBidHistory().size(), winner.getAmount()),
+                    NotificationType.AUCTION_CLOSED,
+                    listing.getId(),
+                    listing.getTitle()
+            );
         } else {
             listing.setStatus(ListingStatus.UNSOLD);
-        }
+            listing.setUpdatedAt(now);
+            listingRepository.save(listing);
 
-        listing.setUpdatedAt(now);
-        listingRepository.save(listing);
+            // Notify seller that auction closed with no bids (deduplicated)
+            notificationService.sendNotificationIfNotExists(
+                    listing.getSellerId(),
+                    listing.getSellerName(),
+                    "Auction Closed (Unsold): LOT #" + String.format("%03d", listing.getId()),
+                    String.format("Your auction for \"%s\" reached its deadline with no bids and has been marked as UNSOLD.",
+                            listing.getTitle()),
+                    NotificationType.AUCTION_CLOSED,
+                    listing.getId(),
+                    listing.getTitle()
+            );
+        }
     }
 
     /**
@@ -450,12 +555,38 @@ public class ListingService {
             listing.setStatus(ListingStatus.APPROVED);
             listing.setSellerDecision("APPROVED");
             listing.setSellerDecisionTime(now);
-            listing.setSellerDecisionNotes(notes != null && !notes.isBlank() ? notes.trim() : "Approved by seller. Item reserved for winning bidder.");
+            String finalNotes = notes != null && !notes.isBlank() ? notes.trim() : "Approved by seller. Item reserved for winning bidder.";
+            listing.setSellerDecisionNotes(finalNotes);
+
+            // Notify winning buyer that their bid was approved and item is reserved
+            notificationService.sendNotification(
+                    listing.getWinningBidderId(),
+                    listing.getWinningBidderName(),
+                    "Bid Approved! LOT #" + String.format("%03d", listing.getId()) + " Reserved For You",
+                    String.format("Great news! The seller approved your winning bid of $%.2f for \"%s\". The item is now reserved. Note: %s",
+                            listing.getWinningBidAmount(), listing.getTitle(), finalNotes),
+                    NotificationType.BID_APPROVED,
+                    listing.getId(),
+                    listing.getTitle()
+            );
         } else if ("REJECT".equalsIgnoreCase(decision.trim())) {
             listing.setStatus(ListingStatus.REJECTED);
             listing.setSellerDecision("REJECTED");
             listing.setSellerDecisionTime(now);
-            listing.setSellerDecisionNotes(notes != null && !notes.isBlank() ? notes.trim() : "Winning bid declined by seller.");
+            String finalNotes = notes != null && !notes.isBlank() ? notes.trim() : "Winning bid declined by seller.";
+            listing.setSellerDecisionNotes(finalNotes);
+
+            // Notify winning buyer that their bid was declined
+            notificationService.sendNotification(
+                    listing.getWinningBidderId(),
+                    listing.getWinningBidderName(),
+                    "Bid Declined on LOT #" + String.format("%03d", listing.getId()),
+                    String.format("The seller has declined the winning bid of $%.2f for \"%s\". Reason: %s",
+                            listing.getWinningBidAmount(), listing.getTitle(), finalNotes),
+                    NotificationType.BID_REJECTED,
+                    listing.getId(),
+                    listing.getTitle()
+            );
         } else {
             throw new IllegalArgumentException("Invalid decision. Must be APPROVE or REJECT.");
         }
@@ -495,16 +626,62 @@ public class ListingService {
 
         if (isSeller) {
             listing.setHandoverConfirmedBySeller(true);
+            // Notify winning buyer that seller confirmed handover
+            notificationService.sendNotification(
+                    listing.getWinningBidderId(),
+                    listing.getWinningBidderName(),
+                    "Handover Update on LOT #" + String.format("%03d", listing.getId()),
+                    String.format("The seller (%s) confirmed campus handover for \"%s\". Please confirm once you receive your item to complete the sale.",
+                            listing.getSellerName(), listing.getTitle()),
+                    NotificationType.HANDOVER_CONFIRMED,
+                    listing.getId(),
+                    listing.getTitle()
+            );
         }
         if (isWinner) {
             listing.setHandoverConfirmedByWinner(true);
+            // Notify seller that winning buyer confirmed receiving item
+            notificationService.sendNotification(
+                    listing.getSellerId(),
+                    listing.getSellerName(),
+                    "Handover Update on LOT #" + String.format("%03d", listing.getId()),
+                    String.format("The winning buyer (%s) confirmed receiving the item for \"%s\". Please confirm from your side if not yet done.",
+                            listing.getWinningBidderName(), listing.getTitle()),
+                    NotificationType.HANDOVER_CONFIRMED,
+                    listing.getId(),
+                    listing.getTitle()
+            );
         }
 
         LocalDateTime now = LocalDateTime.now();
-        // If either confirms in-person or both confirmed, complete sale
+        // If both confirmed, complete sale
         if (Boolean.TRUE.equals(listing.getHandoverConfirmedBySeller()) && Boolean.TRUE.equals(listing.getHandoverConfirmedByWinner())) {
             listing.setStatus(ListingStatus.COMPLETED);
             listing.setHandoverTime(now);
+
+            // Notify seller of completion
+            notificationService.sendNotificationIfNotExists(
+                    listing.getSellerId(),
+                    listing.getSellerName(),
+                    "Sale Completed! LOT #" + String.format("%03d", listing.getId()),
+                    String.format("Campus exchange confirmed by both parties! The sale of \"%s\" to %s for $%.2f is complete.",
+                            listing.getTitle(), listing.getWinningBidderName(), listing.getWinningBidAmount()),
+                    NotificationType.SALE_COMPLETED,
+                    listing.getId(),
+                    listing.getTitle()
+            );
+
+            // Notify buyer of completion
+            notificationService.sendNotificationIfNotExists(
+                    listing.getWinningBidderId(),
+                    listing.getWinningBidderName(),
+                    "Sale Completed! LOT #" + String.format("%03d", listing.getId()),
+                    String.format("Campus handover confirmed! Your purchase of \"%s\" for $%.2f is officially completed. Enjoy your item!",
+                            listing.getTitle(), listing.getWinningBidAmount()),
+                    NotificationType.SALE_COMPLETED,
+                    listing.getId(),
+                    listing.getTitle()
+            );
         }
 
         listing.setUpdatedAt(now);
@@ -543,6 +720,31 @@ public class ListingService {
         listing.setUpdatedAt(now);
 
         Listing saved = listingRepository.save(listing);
+
+        // Notify seller of completion
+        notificationService.sendNotificationIfNotExists(
+                listing.getSellerId(),
+                listing.getSellerName(),
+                "Sale Completed! LOT #" + String.format("%03d", listing.getId()),
+                String.format("Campus exchange confirmed by both parties! The sale of \"%s\" to %s for $%.2f is complete.",
+                        listing.getTitle(), listing.getWinningBidderName(), listing.getWinningBidAmount()),
+                NotificationType.SALE_COMPLETED,
+                listing.getId(),
+                listing.getTitle()
+        );
+
+        // Notify buyer of completion
+        notificationService.sendNotificationIfNotExists(
+                listing.getWinningBidderId(),
+                listing.getWinningBidderName(),
+                "Sale Completed! LOT #" + String.format("%03d", listing.getId()),
+                String.format("Campus handover confirmed! Your purchase of \"%s\" for $%.2f is officially completed. Enjoy your item!",
+                        listing.getTitle(), listing.getWinningBidAmount()),
+                NotificationType.SALE_COMPLETED,
+                listing.getId(),
+                listing.getTitle()
+        );
+
         return ListingResponse.fromEntity(saved);
     }
 
@@ -576,6 +778,32 @@ public class ListingService {
         listing.setUpdatedAt(now);
 
         Listing saved = listingRepository.save(listing);
+
+        // Notify the other party of cancellation
+        if (isSeller && listing.getWinningBidderId() != null) {
+            notificationService.sendNotification(
+                    listing.getWinningBidderId(),
+                    listing.getWinningBidderName(),
+                    "Sale Cancelled for LOT #" + String.format("%03d", listing.getId()),
+                    String.format("The sale for \"%s\" was cancelled by the seller. Reason: %s",
+                            listing.getTitle(), finalReason),
+                    NotificationType.SALE_CANCELLED,
+                    listing.getId(),
+                    listing.getTitle()
+            );
+        } else if (isWinner) {
+            notificationService.sendNotification(
+                    listing.getSellerId(),
+                    listing.getSellerName(),
+                    "Sale Cancelled for LOT #" + String.format("%03d", listing.getId()),
+                    String.format("The winning buyer cancelled the purchase for \"%s\". Reason: %s",
+                            listing.getTitle(), finalReason),
+                    NotificationType.SALE_CANCELLED,
+                    listing.getId(),
+                    listing.getTitle()
+            );
+        }
+
         return ListingResponse.fromEntity(saved);
     }
 
