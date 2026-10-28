@@ -104,6 +104,26 @@ export default function CreateListingModal({
     setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
+  // Live validation for description while typing
+  function handleDescriptionChange(e) {
+    const val = e.target.value;
+    setFormData((prev) => ({ ...prev, description: val }));
+
+    const trimmed = val.trim();
+    if (!trimmed || trimmed.length < 10) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        description: 'Description must be at least 10 characters long.',
+      }));
+    } else {
+      setFieldErrors((prev) => {
+        const copy = { ...prev };
+        delete copy.description;
+        return copy;
+      });
+    }
+  }
+
   // Client-side validation
   function validate() {
     const errors = {};
@@ -280,7 +300,7 @@ export default function CreateListingModal({
                 className={`form-textarea ${fieldErrors.description ? 'input-error' : ''}`}
                 placeholder="Describe item features, cosmetic condition, reason for selling, included accessories, campus pickup location..."
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={handleDescriptionChange}
               />
               {fieldErrors.description && <span className="error-hint">{fieldErrors.description}</span>}
             </div>

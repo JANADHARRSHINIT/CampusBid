@@ -115,6 +115,26 @@ function EditListingForm({
     setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
+  // Live validation for description while typing
+  function handleDescriptionChange(e) {
+    const val = e.target.value;
+    setFormData((prev) => ({ ...prev, description: val }));
+
+    const trimmed = val.trim();
+    if (!trimmed || trimmed.length < 10) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        description: 'Description must be at least 10 characters long.',
+      }));
+    } else {
+      setFieldErrors((prev) => {
+        const copy = { ...prev };
+        delete copy.description;
+        return copy;
+      });
+    }
+  }
+
   function validate() {
     const errors = {};
     if (!formData.title.trim() || formData.title.trim().length < 3) {
@@ -253,7 +273,7 @@ function EditListingForm({
                 rows={4}
                 className={`form-textarea ${fieldErrors.description ? 'input-error' : ''}`}
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={handleDescriptionChange}
               />
               {fieldErrors.description && <span className="error-hint">{fieldErrors.description}</span>}
             </div>
